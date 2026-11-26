@@ -2,7 +2,7 @@
 title: Serial-Numbered Fungible Tokens
 description: Fungible tokens whose units each have a serial number; ERC-20 compatible, with optional freezing and classification by slice.
 author: Yi Cai (@YeeTsai) <yee.tsai@gmail.com>, Yan Meng (@ymonk) <myan@unizon.au>
-discussions-to: <URL of the Ethereum Magicians thread, to be added>
+discussions-to: https://ethereum-magicians.org/t/erc-xxxx-serial-numbered-fungible-tokens/30519
 status: Draft
 type: Standards Track
 category: ERC
