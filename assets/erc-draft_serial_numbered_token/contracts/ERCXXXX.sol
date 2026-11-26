@@ -557,7 +557,7 @@ abstract contract ERCXXXX is SerialHoldings, IERC20Metadata, IERC20Errors, IERC1
     ///      The empty arrays allocate no memory (an unassigned memory array points to the zero slot, whose length is
     ///      0), and callers read only their length. On a token that does not open consolidation, freezing and
     ///      unfreezing therefore cost only one extra internal call; allocating two empty arrays would shift all
-    ///      later memory allocations and make a freeze cost about 210 to 270 gas more.
+    ///      later memory allocations and make a freeze cost more.
     function _successorPieces(uint256 start, uint256 end)
         internal
         view
@@ -620,8 +620,8 @@ abstract contract ERCXXXX is SerialHoldings, IERC20Metadata, IERC20Errors, IERC1
 
     /// @dev The maximum number of slices that are not transferable that one transfer by amount moves to the piles
     ///      where they belong.
-    ///      Moving a slice costs about 25,000 gas; the slices beyond this limit are skipped in place, at a few
-    ///      thousand gas per slice per transfer, and left for later transfers to continue tidying.
+    ///      Moving a slice writes storage; the slices beyond this limit are skipped in place, at a smaller cost per
+    ///      slice per transfer, and left for later transfers to continue tidying.
     function _maxPileMoves() internal view virtual returns (uint256) {
         return 32;
     }

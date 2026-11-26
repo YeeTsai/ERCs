@@ -2,7 +2,7 @@
 
 This directory holds the reference implementation of the draft ERC "Serial-Numbered Fungible Tokens" as a self-contained Foundry package, next to the other assets of the draft. It has no dependency other than `forge-std`, which only the tests use.
 
-The implementation is written to check that the specification can be implemented and to be read alongside it. It is not audited and not optimized, and most combinations of its modules are too large to deploy as one contract (see "Code size").
+The implementation is written to check that the specification can be implemented and to be read alongside it. It is not audited and not optimized. A token with the core alone, with or without consolidation or the acceptance check, is within the contract code size limit; the combinations that include the freezing extension are over it, because the size of the code has not been reduced yet (see "Code size").
 
 The draft has no number yet, so every name uses the placeholder prefix `ERCXXXX` (`IERCXXXX`, `ERCXXXXFreezable`, `acceptsERCXXXXTransfer`, ...). The two identifiers that depend on these names, `0x4689efd4` and `0x29543499`, change when the number is assigned.
 
@@ -52,7 +52,7 @@ The code is a snapshot of commit `cd940c97cd800e07bfd2f507932b0a67f248dd7e` of t
 
 ## Code size
 
-EIP-170 limits the runtime code of a contract to 24,576 bytes. Most combinations of the modules exceed it.
+EIP-170 limits the runtime code of a contract to 24,576 bytes. The core is within it, with or without consolidation or the acceptance check; it is the optional extensions that take a token over it, the freezing extension most of all.
 
 The table gives the runtime size in bytes of the test presets in `test/presets/Presets.sol` and of the example token, as reported by `forge build --sizes` with solc 0.8.36, optimizer on, 200 runs, without `via_ir`. Every preset also contains the burn module and the admin functions of the tests, and every preset with the freezing or the classification extension contains `tidySlices`.
 
@@ -71,6 +71,8 @@ The table gives the runtime size in bytes of the test presets in `test/presets/P
 | Freezing, classes, acceptance check, consolidation, no burning | `ERCXXXXExampleToken` | 39,333 | | no |
 
 So, as single contracts, only the core, the core with the acceptance check, the core with consolidation, and the classification extension without consolidation can be deployed where EIP-170 applies. Every combination that includes the freezing extension is over the limit, the freezing extension alone by about 2,500 bytes on the slice stack.
+
+EIP-7954 raises the limit to 65,536 bytes. It is scheduled for the Glamsterdam upgrade, which was not active on mainnet when this was written (November 2026). Every combination in the table is below that limit.
 
 Nothing in this package reduces the size: no module is split into separately deployed contracts or libraries, and no compiler setting was tuned for size. The tests are not affected, because the test EVM of forge does not enforce the limit by default. `forge build --sizes` exits with an error for the same reason the table has rows marked "no".
 
