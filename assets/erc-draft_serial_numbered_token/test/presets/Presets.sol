@@ -345,13 +345,13 @@ abstract contract PresetCoreConsol is PresetBase, ERCXXXXConsolidation {
         return super.consolidateSlices(starts, amounts);
     }
 
-    function consolidatedRunAt(uint256 serial)
+    function consolidatedSpanAt(uint256 serial)
         public
         view
         override(ERCXXXX, ERCXXXXConsolidation)
         returns (bool, uint256, uint256)
     {
-        return super.consolidatedRunAt(serial);
+        return super.consolidatedSpanAt(serial);
     }
 
     function decimals() public view override(ERCXXXX, PresetBase) returns (uint8) {
@@ -377,13 +377,13 @@ abstract contract PresetFreezeConsol is PresetBase, FreezeAdmin, ERCXXXXTidy, ER
         return super.consolidateSlices(starts, amounts);
     }
 
-    function consolidatedRunAt(uint256 serial)
+    function consolidatedSpanAt(uint256 serial)
         public
         view
         override(ERCXXXX, ERCXXXXConsolidation)
         returns (bool, uint256, uint256)
     {
-        return super.consolidatedRunAt(serial);
+        return super.consolidatedSpanAt(serial);
     }
 
     function decimals() public view override(ERCXXXX, PresetBase) returns (uint8) {
@@ -426,13 +426,13 @@ abstract contract PresetClassConsol is PresetBase, ClassAdmin, ERCXXXXTidy, ERCX
         return super.consolidateSlices(starts, amounts);
     }
 
-    function consolidatedRunAt(uint256 serial)
+    function consolidatedSpanAt(uint256 serial)
         public
         view
         override(ERCXXXX, ERCXXXXConsolidation)
         returns (bool, uint256, uint256)
     {
-        return super.consolidatedRunAt(serial);
+        return super.consolidatedSpanAt(serial);
     }
 
     function decimals() public view override(ERCXXXX, PresetBase) returns (uint8) {
@@ -491,13 +491,13 @@ abstract contract PresetBothConsol is PresetBase, FreezeAdmin, ClassAdmin, ERCXX
         return super.consolidateSlices(starts, amounts);
     }
 
-    function consolidatedRunAt(uint256 serial)
+    function consolidatedSpanAt(uint256 serial)
         public
         view
         override(ERCXXXX, ERCXXXXConsolidation)
         returns (bool, uint256, uint256)
     {
-        return super.consolidatedRunAt(serial);
+        return super.consolidatedSpanAt(serial);
     }
 
     function decimals() public view override(ERCXXXX, PresetBase) returns (uint8) {

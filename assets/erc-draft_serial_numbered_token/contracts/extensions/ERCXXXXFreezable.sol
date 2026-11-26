@@ -156,9 +156,9 @@ abstract contract ERCXXXXFreezable is ERCXXXX, IERCXXXXFreezable {
     }
 
     /// @dev Destroyed serials also have a frozen state (destruction does not change it), so when destroyed serials
-    ///      lie between two frozen slices, the run returned is a slice of the cover count step function and is not
+    ///      lie between two frozen slices, the span returned is a slice of the cover count step function and is not
     ///      broken by the destroyed serials in between.
-    function frozenRunAt(uint256 serial) public view virtual returns (bool frozen, uint256 length) {
+    function frozenSpanAt(uint256 serial) public view virtual returns (bool frozen, uint256 length) {
         uint256 issued = serialsIssued();
         if (serial >= issued) return (false, 0);
         uint256 n = _cover.length;

@@ -226,9 +226,9 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
         assertEq(t.decimals(), 6);
         // The two consolidation functions are in the core interface: the same id is declared whether or not
         // consolidation is open.
-        assertEq(type(IERCXXXX).interfaceId, bytes4(0x58875f52));
-        assertEq(type(IERCXXXXFreezable).interfaceId, bytes4(0x573136e9));
-        assertEq(type(IERCXXXXClassified).interfaceId, bytes4(0xee27ff45));
+        assertEq(type(IERCXXXX).interfaceId, bytes4(0x668ccf00));
+        assertEq(type(IERCXXXXFreezable).interfaceId, bytes4(0x6eb84bb0));
+        assertEq(type(IERCXXXXClassified).interfaceId, bytes4(0xb62c1e43));
         assertEq(type(IERCXXXXAcceptance).interfaceId, bytes4(0x4689efd4));
         assertEq(IERCXXXX.ERCXXXXTransferRefused.selector, ACCEPTANCE_CHECK_ID);
     }
@@ -302,13 +302,13 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
         assertEq(t.frozenBalanceOf(A), 70);
         assertEq(t.frozenBalanceOf(B), 20);
         assertEq(t.frozenBalanceOf(C), 10);
-        (bool f, uint256 len) = t.frozenRunAt(0);
+        (bool f, uint256 len) = t.frozenSpanAt(0);
         assertTrue(f);
         assertTrue(len >= 1 && len <= 100);
-        (f, len) = t.frozenRunAt(100);
+        (f, len) = t.frozenSpanAt(100);
         assertFalse(f);
         assertTrue(len >= 1 && len <= 50);
-        (f, len) = t.frozenRunAt(150);
+        (f, len) = t.frozenSpanAt(150);
         assertFalse(f);
         assertEq(len, 0);
         (uint256 amt, uint256 entries) = _reasonAmount(C, r1);
@@ -352,7 +352,7 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
         // 8
         vm.prank(admin);
         t.unfreezeSlice(0, 100, r1);
-        (f,) = t.frozenRunAt(0);
+        (f,) = t.frozenSpanAt(0);
         assertTrue(f);
         _assertTransferableForAnyTo(A, 0);
         _assertTransferableForAnyTo(B, 0);
@@ -368,10 +368,10 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
         // 9
         vm.prank(admin);
         t.unfreezeSlice(0, 100, r2);
-        (f, len) = t.frozenRunAt(0);
+        (f, len) = t.frozenSpanAt(0);
         assertFalse(f);
         assertTrue(len >= 1 && len <= 100);
-        (f, len) = t.frozenRunAt(100);
+        (f, len) = t.frozenSpanAt(100);
         assertTrue(f);
         assertTrue(len >= 1 && len <= 50);
         assertEq(t.frozenBalanceOf(A), 0);
@@ -563,13 +563,13 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
         assertEq(amt, 100);
         (amt,) = _classAmount(A, bytes32(0));
         assertEq(amt, 50);
-        (bytes32 cid, uint256 len) = t.classRunAt(0);
+        (bytes32 cid, uint256 len) = t.classSpanAt(0);
         assertEq(cid, w);
         assertTrue(len >= 1 && len <= 100);
-        (cid, len) = t.classRunAt(100);
+        (cid, len) = t.classSpanAt(100);
         assertEq(cid, bytes32(0));
         assertTrue(len >= 1 && len <= 50);
-        (cid, len) = t.classRunAt(150);
+        (cid, len) = t.classSpanAt(150);
         assertEq(cid, bytes32(0));
         assertEq(len, 0);
         vm.getRecordedLogs();
@@ -591,7 +591,7 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
         _assertWithin(m4, 0, 100, "step 4 ranges");
         for (uint256 s; s < 150; ++s) {
             if (!m4[s]) continue;
-            (cid,) = t.classRunAt(s);
+            (cid,) = t.classSpanAt(s);
             assertEq(cid, w, "step 4 class kept");
         }
 
@@ -650,7 +650,7 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
         assertEq(t.balanceOf(T), 10);
         assertEq(t.frozenBalanceOf(T), 10);
         _assertTransferableForAnyTo(T, 0);
-        (bool f, uint256 len) = t.frozenRunAt(20);
+        (bool f, uint256 len) = t.frozenSpanAt(20);
         assertTrue(f);
         assertTrue(len >= 1 && len <= 30);
 
@@ -671,11 +671,11 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
         vm.prank(admin);
         t.unfreezeSlice(20, 10, r);
         _assertTransferableForAnyTo(T, 10);
-        (f, len) = t.frozenRunAt(20);
+        (f, len) = t.frozenSpanAt(20);
         assertFalse(f);
         assertTrue(len >= 1 && len <= 10);
         // the destroyed serials 30 through 49 are still frozen for r
-        (f, len) = t.frozenRunAt(30);
+        (f, len) = t.frozenSpanAt(30);
         assertTrue(f);
         assertTrue(len >= 1 && len <= 20);
     }
@@ -755,12 +755,12 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
         (a[0], a[1], a[2]) = (x, y, z);
     }
 
-    function _assertConsolidatedRun(uint256 serial, bool c, uint256 succ, uint256 maxLen) internal view {
-        (bool c2, uint256 s2, uint256 l2) = t.consolidatedRunAt(serial);
-        assertEq(c2, c, "consolidatedRunAt.consolidated");
-        assertEq(s2, succ, "consolidatedRunAt.successor");
-        if (maxLen == 0) assertEq(l2, 0, "consolidatedRunAt.length of an unissued serial");
-        else assertTrue(l2 >= 1 && l2 <= maxLen, "consolidatedRunAt.length");
+    function _assertConsolidatedSpan(uint256 serial, bool c, uint256 succ, uint256 maxLen) internal view {
+        (bool c2, uint256 s2, uint256 l2) = t.consolidatedSpanAt(serial);
+        assertEq(c2, c, "consolidatedSpanAt.consolidated");
+        assertEq(s2, succ, "consolidatedSpanAt.successor");
+        if (maxLen == 0) assertEq(l2, 0, "consolidatedSpanAt.length of an unissued serial");
+        else assertTrue(l2 >= 1 && l2 <= maxLen, "consolidatedSpanAt.length");
     }
 
     function _consolidationSequence() internal {
@@ -787,11 +787,11 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
             (his[0], his[1], his[2], his[3]) = (10, 30, 50, 100);
             _assertExactly(_holdMask(A, 125), los, his, "step 2 A ranges");
         }
-        _assertConsolidatedRun(10, true, 100, 10);
-        _assertConsolidatedRun(15, true, 105, 5);
-        _assertConsolidatedRun(20, false, 0, 10);
-        _assertConsolidatedRun(55, false, 0, 70);
-        _assertConsolidatedRun(125, false, 0, 0);
+        _assertConsolidatedSpan(10, true, 100, 10);
+        _assertConsolidatedSpan(15, true, 105, 5);
+        _assertConsolidatedSpan(20, false, 0, 10);
+        _assertConsolidatedSpan(55, false, 0, 70);
+        _assertConsolidatedSpan(125, false, 0, 0);
 
         // 3
         vm.startPrank(B);
@@ -824,9 +824,9 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
         assertEq(t.serialsIssued(), 140);
         assertEq(t.balanceOf(B), 30);
         _assertExactly(_holdMask(B, 140), _one(110), _one(140), "step 4 B ranges");
-        _assertConsolidatedRun(10, true, 100, 10);
-        _assertConsolidatedRun(100, true, 130, 10);
-        _assertConsolidatedRun(130, false, 0, 10);
+        _assertConsolidatedSpan(10, true, 100, 10);
+        _assertConsolidatedSpan(100, true, 130, 10);
+        _assertConsolidatedSpan(130, false, 0, 10);
     }
 
     // ───────────────────────── Tokens that keep consolidation closed ─────────────────────────
@@ -835,7 +835,7 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
     // The tests below consolidate slices with valid arguments, all held by the caller, not frozen and of the same
     // class, and require the call to revert with an error that is not about the arguments, holding, transferability
     // or consolidatability (otherwise the revert might have another cause); the state does not change, and
-    // consolidatedRunAt reports no consolidated serials.
+    // consolidatedSpanAt reports no consolidated serials.
 
     /// @dev account consolidating (starts, amounts) must revert because consolidation is closed, and the state does
     ///      not change.
@@ -857,20 +857,20 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
         _assertNothingConsolidated();
     }
 
-    /// @dev No serial is consolidated: for every issued serial, consolidatedRunAt returns
+    /// @dev No serial is consolidated: for every issued serial, consolidatedSpanAt returns
     ///      (false, 0, 1..issued - serial), and for one not issued it returns (false, 0, 0) (clause 9 of
     ///      "Consolidation" of the draft).
     function _assertNothingConsolidated() internal view {
         uint256 n = t.serialsIssued();
         for (uint256 s; s < n; ++s) {
-            (bool c, uint256 succ, uint256 len) = t.consolidatedRunAt(s);
-            assertFalse(c, "consolidatedRunAt.consolidated on a closed token");
-            assertEq(succ, 0, "consolidatedRunAt.successor on a closed token");
-            assertTrue(len >= 1 && len <= n - s, "consolidatedRunAt.length on a closed token");
+            (bool c, uint256 succ, uint256 len) = t.consolidatedSpanAt(s);
+            assertFalse(c, "consolidatedSpanAt.consolidated on a closed token");
+            assertEq(succ, 0, "consolidatedSpanAt.successor on a closed token");
+            assertTrue(len >= 1 && len <= n - s, "consolidatedSpanAt.length on a closed token");
         }
-        _assertConsolidatedRun(n, false, 0, 0);
-        _assertConsolidatedRun(n + 1000, false, 0, 0);
-        _assertConsolidatedRun(type(uint256).max, false, 0, 0);
+        _assertConsolidatedSpan(n, false, 0, 0);
+        _assertConsolidatedSpan(n + 1000, false, 0, 0);
+        _assertConsolidatedSpan(type(uint256).max, false, 0, 0);
     }
 
     /// @dev The holdings of step 1 of the consolidation sequence; then the consolidations of steps 2 and 4 both
@@ -912,7 +912,7 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
         _assertExactly(
             _freezeEventMask(vm.getRecordedLogs(), FROZEN_SIG, r1, 140), _two(100, 130), _two(105, 135), "step 5"
         );
-        (bool f, uint256 len) = t.frozenRunAt(10);
+        (bool f, uint256 len) = t.frozenSpanAt(10);
         assertFalse(f, "step 5: not propagated to the old serial");
         assertEq(t.frozenBalanceOf(B), 5);
 
@@ -952,10 +952,10 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
         (amt, entries) = _reasonAmount(B, r1);
         assertEq(entries, 1);
         assertEq(amt, 5);
-        (f, len) = t.frozenRunAt(130);
+        (f, len) = t.frozenSpanAt(130);
         assertTrue(f);
         assertTrue(len >= 1 && len <= 5);
-        (f, len) = t.frozenRunAt(135);
+        (f, len) = t.frozenSpanAt(135);
         assertFalse(f);
         assertTrue(len >= 1 && len <= 5);
 
@@ -1008,7 +1008,7 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
         (uint256 amt, uint256 entries) = _classAmount(A, w);
         assertEq(entries, 2);
         assertEq(amt, 20);
-        (bytes32 cid, uint256 len) = t.classRunAt(31);
+        (bytes32 cid, uint256 len) = t.classSpanAt(31);
         assertEq(cid, bytes32(0));
         assertEq(len, 0, "serial 31 was never issued");
     }
@@ -1055,7 +1055,7 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
             }
             _assertExactly(cm, _one(31), _one(51), "step 3 SliceClassified coverage");
         }
-        (bytes32 cid, uint256 len) = t.classRunAt(31);
+        (bytes32 cid, uint256 len) = t.classSpanAt(31);
         assertEq(cid, w);
         assertTrue(len >= 1 && len <= 20);
         (uint256 amt, uint256 entries) = _classAmount(A, w);
@@ -1074,7 +1074,7 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
                 assertTrue(logs[i].topics[0] != CLASS_SET_SIG, "step 4 SliceClassified for the default class");
             }
         }
-        (cid, len) = t.classRunAt(51);
+        (cid, len) = t.classSpanAt(51);
         assertEq(cid, bytes32(0));
         assertTrue(len >= 1 && len <= 10);
     }

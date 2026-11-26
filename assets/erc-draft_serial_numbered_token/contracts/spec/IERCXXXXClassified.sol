@@ -8,11 +8,11 @@ interface IERCXXXXClassified /* is IERCXXXX */ {
     ///         set to `classId`.
     event SliceClassified(uint256 start, uint256 amount, bytes32 classId);
 
-    /// @notice The class of `serial`, and a run of serials of that class. Zero is the default
+    /// @notice The class of `serial`, and a span of serials of that class. Zero is the default
     ///         class.
     /// @dev The `length` consecutive serials starting at `serial` all have the class `classId`.
     ///      `length` is zero if `serial` has not been issued.
-    function classRunAt(uint256 serial) external view returns (bytes32 classId, uint256 length);
+    function classSpanAt(uint256 serial) external view returns (bytes32 classId, uint256 length);
 
     /// @notice Whether the class `classId` allows a serial of that class held by `from` to be
     ///         moved to `to` at present.

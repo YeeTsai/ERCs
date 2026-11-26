@@ -60,10 +60,10 @@ library SerialConsolidations {
     /// @dev The value of prev in add that means "no previous record".
     uint256 internal constant NONE = type(uint256).max;
 
-    /// @dev When runAt extends a consolidated run along adjacent records, the maximum number of further records it
+    /// @dev When spanAt extends a consolidated span along adjacent records, the maximum number of further records it
     ///      reads after the record that contains serial. The bound keeps many small records that follow one another
     ///      from driving up the gas of on-chain callers: one query reads at most 1 + 32 records.
-    uint256 internal constant MAX_RUN_EXTENSION = 32;
+    uint256 internal constant MAX_SPAN_EXTENSION = 32;
 
     // ───────────────────────── Records ─────────────────────────
 
@@ -257,18 +257,18 @@ library SerialConsolidations {
 
     // ───────────────────────── Queries ─────────────────────────
 
-    /// @dev The result of consolidatedRunAt (clauses 9 and 10 of "Consolidation" in the draft); issued is
+    /// @dev The result of consolidatedSpanAt (clauses 9 and 10 of "Consolidation" in the draft); issued is
     ///      serialsIssued().
-    ///      When consolidated, the run goes from serial to the end of the record that contains it, and extends into
+    ///      When consolidated, the span goes from serial to the end of the record that contains it, and extends into
     ///      the next record whose old serials follow immediately and whose successors also follow immediately, by at
-    ///      most MAX_RUN_EXTENSION more records; when more records follow one another, the run returned is shorter
+    ///      most MAX_SPAN_EXTENSION more records; when more records follow one another, the span returned is shorter
     ///      than the longest one (clause 10 is only a SHOULD), and the caller can continue querying from the end of
-    ///      the run returned. A truncated run has at least MAX_RUN_EXTENSION + 1 serials (each record has at least 1).
-    ///      When not consolidated, the run ends at the old start of the next record (not beyond issued), and is the
-    ///      longest run.
-    ///      Cost: when consolidated, at most 1 + MAX_RUN_EXTENSION records are read, plus one floor lookup; when not
+    ///      the span returned. A truncated span has at least MAX_SPAN_EXTENSION + 1 serials (each record has at least 1).
+    ///      When not consolidated, the span ends at the old start of the next record (not beyond issued), and is the
+    ///      longest span.
+    ///      Cost: when consolidated, at most 1 + MAX_SPAN_EXTENSION records are read, plus one floor lookup; when not
     ///      consolidated, one floor lookup and one ceiling lookup.
-    function runAt(Records storage r, uint256 serial, uint256 issued)
+    function spanAt(Records storage r, uint256 serial, uint256 issued)
         internal
         view
         returns (bool consolidated, uint256 successor, uint256 length)
@@ -280,7 +280,7 @@ library SerialConsolidations {
             if (serial - k < len) {
                 uint256 e = k + len;
                 uint256 ns = s + len;
-                for (uint256 j; j < MAX_RUN_EXTENSION; ++j) {
+                for (uint256 j; j < MAX_SPAN_EXTENSION; ++j) {
                     (uint256 s2, uint256 l2) = runOf(r, e);
                     if (l2 == 0 || s2 != ns) break;
                     e += l2;

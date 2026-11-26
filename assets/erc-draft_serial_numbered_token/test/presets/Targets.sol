@@ -80,18 +80,18 @@ interface ITestToken {
         view
         returns (bool held, bytes32 pile, uint256 index, uint256 rangeStart, uint256 rangeAmount);
     function tidySlices(address account, bytes32 pile, uint256 maxMoves) external returns (uint256 moved);
-    function frozenRunAt(uint256 serial) external view returns (bool frozen, uint256 length);
+    function frozenSpanAt(uint256 serial) external view returns (bool frozen, uint256 length);
     function frozenBalanceOf(address account) external view returns (uint256);
     function freezeReasonsOf(address account) external view returns (bytes32[] memory, uint256[] memory);
     function freezeReasonInfo(bytes32 reason) external view returns (string memory, string memory);
 
-    function classRunAt(uint256 serial) external view returns (bytes32 classId, uint256 length);
+    function classSpanAt(uint256 serial) external view returns (bytes32 classId, uint256 length);
     function classAllows(bytes32 classId, address from, address to) external view returns (bool);
     function classesOf(address account) external view returns (bytes32[] memory, uint256[] memory);
     function classInfo(bytes32 classId) external view returns (string memory, string memory);
 
     function consolidateSlices(uint256[] calldata starts, uint256[] calldata amounts) external returns (uint256 newStart);
-    function consolidatedRunAt(uint256 serial)
+    function consolidatedSpanAt(uint256 serial)
         external
         view
         returns (bool consolidated, uint256 successor, uint256 length);
@@ -143,7 +143,7 @@ abstract contract TokenTarget {
     ///      Consolidation belongs to the core interface and has no separate interface id, so the tests cannot tell
     ///      by supportsInterface, and each target marks it explicitly here: a target with consol true inherits the
     ///      consolidation module ERCXXXXConsolidation; in a target with consol false, consolidation is closed, and
-    ///      the tests assert the closed behavior (consolidateSlices always reverts, consolidatedRunAt reports no
+    ///      the tests assert the closed behavior (consolidateSlices always reverts, consolidatedSpanAt reports no
     ///      consolidated serial).
     function _deployToken(address admin)
         internal

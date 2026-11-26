@@ -38,12 +38,12 @@ contract ConsolidationsHarness {
         return _a.runOf(k);
     }
 
-    function runAtNew(uint256 serial, uint256 issued) external view returns (bool, uint256, uint256) {
-        return _a.runAt(serial, issued);
+    function spanAtNew(uint256 serial, uint256 issued) external view returns (bool, uint256, uint256) {
+        return _a.spanAt(serial, issued);
     }
 
-    function runAtOld(uint256 serial, uint256 issued) external view returns (bool, uint256, uint256) {
-        return _o.runAt(serial, issued);
+    function spanAtOld(uint256 serial, uint256 issued) external view returns (bool, uint256, uint256) {
+        return _o.spanAt(serial, issued);
     }
 
     function successorsNew(uint256 start, uint256 end) external view returns (uint256[] memory, uint256[] memory) {
@@ -57,7 +57,7 @@ contract ConsolidationsHarness {
 
 /// @dev Differential test: random sets of keys mixing several magnitudes (dense, every 2^32 after 2^56, random gaps
 ///      of 2^8 to 2^48, random 127-bit values, near 2^127) are added one by one; then floor and ceiling lookups,
-///      consolidatedRunAt and the successor query are compared near each key and at random positions.
+///      consolidatedSpanAt and the successor query are compared near each key and at random positions.
 contract SerialConsolidationsDiffTest is Test {
     ConsolidationsHarness internal h;
     uint256[] internal keys;
@@ -126,7 +126,7 @@ contract SerialConsolidationsDiffTest is Test {
         assertEq(c1, c2, "ceil key");
         (c1, c2) = h.ceilKey(x, type(uint256).max);
         assertEq(c1, c2, "ceil key, no limit");
-        if (x < issued) _checkRunAt(x);
+        if (x < issued) _checkSpanAt(x);
     }
 
     function _checkFloor(uint256 x) internal view {
@@ -135,12 +135,12 @@ contract SerialConsolidationsDiffTest is Test {
         if (f1) assertEq(k1, k2, "floor key");
     }
 
-    function _checkRunAt(uint256 x) internal view {
-        (bool a1, uint256 a2, uint256 a3) = h.runAtNew(x, issued);
-        (bool b1, uint256 b2, uint256 b3) = h.runAtOld(x, issued);
-        assertEq(a1, b1, "runAt consolidated");
-        assertEq(a2, b2, "runAt successor");
-        assertEq(a3, b3, "runAt length");
+    function _checkSpanAt(uint256 x) internal view {
+        (bool a1, uint256 a2, uint256 a3) = h.spanAtNew(x, issued);
+        (bool b1, uint256 b2, uint256 b3) = h.spanAtOld(x, issued);
+        assertEq(a1, b1, "spanAt consolidated");
+        assertEq(a2, b2, "spanAt successor");
+        assertEq(a3, b3, "spanAt length");
     }
 
     function _checkSuccessors(uint256 a, uint256 b) internal view {

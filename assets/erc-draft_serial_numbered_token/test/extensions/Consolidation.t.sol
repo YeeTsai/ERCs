@@ -16,7 +16,7 @@ import "../presets/Targets.sol";
 
 /// @dev The consolidation module ERCXXXXConsolidation, checked clause by clause against "Consolidation" in the draft:
 ///      every revert of the argument checks, the assignment of new serials and the return value, the events,
-///      consolidatedRunAt, enumeration, and that balances, total supply and allowances do not change; the refusals
+///      consolidatedSpanAt, enumeration, and that balances, total supply and allowances do not change; the refusals
 ///      and the propagation in combination with the freezing extension ("Freezing and consolidation"); the refusals
 ///      and the classes in combination with the classification extension ("Classes and consolidation"). There is
 ///      one concrete contract for each combination that opens consolidation (at the end of the file); tests that use
@@ -150,9 +150,9 @@ abstract contract ConsolidationBase is Test, TokenTarget {
         }
     }
 
-    function _assertRun(uint256 serial, bool c, uint256 succ, uint256 len) internal view {
-        (bool c2, uint256 s2, uint256 l2) = t.consolidatedRunAt(serial);
-        string memory w = string.concat("consolidatedRunAt(", vm.toString(serial), ")");
+    function _assertSpan(uint256 serial, bool c, uint256 succ, uint256 len) internal view {
+        (bool c2, uint256 s2, uint256 l2) = t.consolidatedSpanAt(serial);
+        string memory w = string.concat("consolidatedSpanAt(", vm.toString(serial), ")");
         assertEq(c2, c, string.concat(w, ".consolidated"));
         assertEq(s2, succ, string.concat(w, ".successor"));
         assertEq(l2, len, string.concat(w, ".length"));
@@ -223,7 +223,7 @@ abstract contract ConsolidationBase is Test, TokenTarget {
     ///      core, and there is no separate id for consolidation.
     function test_supportsInterface() public view {
         assertTrue(t.supportsInterface(type(IERCXXXX).interfaceId));
-        assertEq(type(IERCXXXX).interfaceId, bytes4(0x58875f52));
+        assertEq(type(IERCXXXX).interfaceId, bytes4(0x668ccf00));
     }
 
     // ───────────────────────── Consolidation: argument checks (clause 4 of "Consolidation") ─────────────────────────
@@ -333,7 +333,7 @@ abstract contract ConsolidationBase is Test, TokenTarget {
     }
 
     /// @dev Adjacent slices, given separately: each i still has its own event; they become one record, and the query
-    ///      returns the whole run.
+    ///      returns the whole span.
     function test_adjacentSlicesGivenSeparately() public {
         _mint(A, 10); // 0..9
         _mint(X, 1);
@@ -342,108 +342,108 @@ abstract contract ConsolidationBase is Test, TokenTarget {
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertEq(n, 11);
         assertEq(_datas(logs, CONSOL_SIG).length, 3);
-        _assertRun(0, true, 11, 6);
-        _assertRun(3, true, 14, 3);
-        _assertRun(5, true, 16, 1);
-        _assertRun(6, false, 0, 11); // none of 6..16 is consolidated
+        _assertSpan(0, true, 11, 6);
+        _assertSpan(3, true, 14, 3);
+        _assertSpan(5, true, 16, 1);
+        _assertSpan(6, false, 0, 11); // none of 6..16 is consolidated
         _assertHeldExactly(A, 17, _arr(6, 11), _arr(10, 17));
     }
 
     // ───────────────────────── Queries on consolidation records (clauses 9 to 11) ─────────────────────────
 
-    function test_consolidatedRunAt() public {
+    function test_consolidatedSpanAt() public {
         _scatter(A, 3); // A: 0, 2, 4; X: 1, 3, 5
         _mint(A, 4); // A: 6..9
         // when nothing is consolidated
-        _assertRun(0, false, 0, 10);
-        _assertRun(9, false, 0, 1);
-        _assertRun(10, false, 0, 0);
+        _assertSpan(0, false, 0, 10);
+        _assertSpan(9, false, 0, 1);
+        _assertSpan(10, false, 0, 0);
         _consolidate(A, _arr(2, 6), _arr(1, 3)); // 2 -> 10, 6..8 -> 11..13
-        _assertRun(0, false, 0, 2);
-        _assertRun(1, false, 0, 1);
-        _assertRun(2, true, 10, 1);
-        _assertRun(3, false, 0, 3);
-        _assertRun(6, true, 11, 3);
-        _assertRun(7, true, 12, 2);
-        _assertRun(8, true, 13, 1);
-        _assertRun(9, false, 0, 5); // 9..13; nothing after 13 is issued yet
-        _assertRun(13, false, 0, 1);
-        _assertRun(14, false, 0, 0); // not issued yet
-        _assertRun(type(uint256).max, false, 0, 0);
+        _assertSpan(0, false, 0, 2);
+        _assertSpan(1, false, 0, 1);
+        _assertSpan(2, true, 10, 1);
+        _assertSpan(3, false, 0, 3);
+        _assertSpan(6, true, 11, 3);
+        _assertSpan(7, true, 12, 2);
+        _assertSpan(8, true, 13, 1);
+        _assertSpan(9, false, 0, 5); // 9..13; nothing after 13 is issued yet
+        _assertSpan(13, false, 0, 1);
+        _assertSpan(14, false, 0, 0); // not issued yet
+        _assertSpan(type(uint256).max, false, 0, 0);
         // a destroyed serial is not consolidated
         vm.prank(A);
         t.burnSlices(_arr(4), _arr(1));
-        _assertRun(4, false, 0, 2);
+        _assertSpan(4, false, 0, 2);
         // records of different consolidations: when they follow immediately in both the old serials and the
-        // successors, the query returns them joined into one run
+        // successors, the query returns them joined into one span
         _mint(A, 10); // 14..23
         uint256 n1 = _consolidate(A, _arr(14), _arr(5)); // 14..18 -> 24..28
         uint256 n2 = _consolidate(A, _arr(19), _arr(5)); // 19..23 -> 29..33
         assertEq(n1, 24);
         assertEq(n2, 29);
-        _assertRun(14, true, 24, 10);
-        _assertRun(17, true, 27, 7);
-        _assertRun(19, true, 29, 5);
+        _assertSpan(14, true, 24, 10);
+        _assertSpan(17, true, 27, 7);
+        _assertSpan(19, true, 29, 5);
         // a successor is consolidated again: follow the queries to the end
         uint256 n3 = _consolidate(A, _arr(24), _arr(3)); // 24..26 -> 34..36
         // 14..23 -> 24..33 and 24..26 -> 34..36 follow immediately (the successor of serial 24 is 34 = 24 + 10),
-        // so they form one run
-        _assertRun(14, true, 24, 13);
-        _assertRun(19, true, 29, 8);
-        _assertRun(24, true, 34, 3);
-        _assertRun(27, false, 0, 10); // none of 27..36 is consolidated (34..36 were just issued); from 37 on not issued
+        // so they form one span
+        _assertSpan(14, true, 24, 13);
+        _assertSpan(19, true, 29, 8);
+        _assertSpan(24, true, 34, 3);
+        _assertSpan(27, false, 0, 10); // none of 27..36 is consolidated (34..36 were just issued); from 37 on not issued
         assertEq(n3, 34);
         // records whose old serials are adjacent but whose successors are not are not joined
         _mint(A, 4); // 37..40
         _consolidate(A, _arr(37), _arr(2)); // 37,38 -> 41,42
         _mint(X, 1); // 43
         _consolidate(A, _arr(39), _arr(2)); // 39,40 -> 44,45
-        _assertRun(37, true, 41, 2);
-        _assertRun(39, true, 44, 2);
+        _assertSpan(37, true, 41, 2);
+        _assertSpan(39, true, 44, 2);
     }
 
     /// @dev Many records that follow immediately (the old serials are adjacent and so are the successors; they come
     ///      from different consolidations): one query joins at most 32 more records after the record that
-    ///      contains the serial, and the run returned is shorter than the longest one but still satisfies clause 9; a
-    ///      caller that continues querying from the end of the returned run reaches the end of the whole run.
-    function test_consolidatedRunAtCapsTheRecordsRead() public {
+    ///      contains the serial, and the span returned is shorter than the longest one but still satisfies clause 9; a
+    ///      caller that continues querying from the end of the returned span reaches the end of the whole span.
+    function test_consolidatedSpanAtCapsTheRecordsRead() public {
         uint256 k = 40;
         _mint(A, k); // 0..39
         for (uint256 i; i < k; ++i) {
             _consolidate(A, _arr(i), _arr(1)); // i -> 40 + i, one record each
         }
         // 40 adjacent records of 1 serial each: starting from 0, at most 1 + 32 records are joined
-        _assertRun(0, true, 40, 33);
-        _assertRun(6, true, 46, 33);
-        _assertRun(7, true, 47, 33);
-        _assertRun(8, true, 48, 32); // 8..39 are only 32 records
-        _assertRun(39, true, 79, 1);
-        _assertRun(40, false, 0, 40); // none of 40..79 is consolidated
-        // continuing the queries from any serial, every result satisfies clause 9 and the end of the whole run is
+        _assertSpan(0, true, 40, 33);
+        _assertSpan(6, true, 46, 33);
+        _assertSpan(7, true, 47, 33);
+        _assertSpan(8, true, 48, 32); // 8..39 are only 32 records
+        _assertSpan(39, true, 79, 1);
+        _assertSpan(40, false, 0, 40); // none of 40..79 is consolidated
+        // continuing the queries from any serial, every result satisfies clause 9 and the end of the whole span is
         // reached
         for (uint256 start; start < k; start += 5) {
             uint256 x = start;
             uint256 calls;
             while (x < k) {
-                (bool c, uint256 succ, uint256 len) = t.consolidatedRunAt(x);
+                (bool c, uint256 succ, uint256 len) = t.consolidatedSpanAt(x);
                 assertTrue(c);
                 assertEq(succ, 40 + x);
                 assertGe(len, 1);
-                assertLe(x + len, k, "the run stays inside the consolidated serials");
+                assertLe(x + len, k, "the span stays inside the consolidated serials");
                 x += len;
                 ++calls;
             }
             assertEq(x, k);
             assertLe(calls, 2);
         }
-        // when every record is longer, the truncated run is longer too: it is truncated by number of records, not
+        // when every record is longer, the truncated span is longer too: it is truncated by number of records, not
         // by number of serials
         _mint(A, 3 * k); // 80..199
         for (uint256 i; i < k; ++i) {
             _consolidate(A, _arr(80 + 3 * i), _arr(3)); // 3 serials each, one record
         }
-        _assertRun(80, true, 200, 99); // 33 records x 3
-        _assertRun(81, true, 201, 98);
+        _assertSpan(80, true, 200, 99); // 33 records x 3
+        _assertSpan(81, true, 201, 98);
     }
 
     // ───────────────────────── Units stored in different piles ─────────────────────────
@@ -492,10 +492,10 @@ abstract contract ConsolidationBase is Test, TokenTarget {
         uint256 n = _consolidate(A, _arr(s, s + 5), _arr(2, 3));
         assertEq(n, type(uint128).max - 5);
         assertEq(t.serialsIssued(), type(uint128).max);
-        _assertRun(s, true, n, 2);
-        _assertRun(s + 5, true, n + 2, 3);
-        _assertRun(s + 2, false, 0, 3);
-        _assertRun(n, false, 0, 5);
+        _assertSpan(s, true, n, 2);
+        _assertSpan(s + 5, true, n + 2, 3);
+        _assertSpan(s + 2, false, 0, 3);
+        _assertSpan(n, false, 0, 5);
     }
 
     // ───────────────────────── Freezing and consolidation ─────────────────────────
@@ -554,10 +554,10 @@ abstract contract ConsolidationBase is Test, TokenTarget {
         (uint256 amt, uint256 entries) = _reasonAmount(A, R1);
         assertEq(amt, 4);
         assertEq(entries, 1);
-        (bool f, uint256 len) = t.frozenRunAt(8);
+        (bool f, uint256 len) = t.frozenSpanAt(8);
         assertTrue(f);
         assertEq(len, 4);
-        (f, len) = t.frozenRunAt(12);
+        (f, len) = t.frozenSpanAt(12);
         assertFalse(f);
         // the successors reached by propagation cannot be transferred out
         assertEq(t.transferableBalanceOf(A, B), 3);
@@ -597,7 +597,7 @@ abstract contract ConsolidationBase is Test, TokenTarget {
         assertEq(t.transferableBalanceOf(A, B), 5);
         // freezing a successor itself does not propagate back
         _freeze(11, 1, R3);
-        (f,) = t.frozenRunAt(6);
+        (f,) = t.frozenSpanAt(6);
         assertFalse(f, "freezing a successor does not freeze the old serial");
     }
 
@@ -611,14 +611,14 @@ abstract contract ConsolidationBase is Test, TokenTarget {
         _consolidate(A, _arr(5), _arr(1)); // 5 -> 7
         _consolidate(A, _arr(6), _arr(1)); // 6 -> 8
         _assertHeldExactly(A, 9, _arr(7), _arr(9));
-        _assertRun(0, true, 4, 1);
-        _assertRun(2, true, 5, 1);
+        _assertSpan(0, true, 4, 1);
+        _assertSpan(2, true, 5, 1);
         // 4 -> 6, 5 -> 7 and 6 -> 8 come from three consolidations; the old serials are adjacent and so are the
-        // successors, so they form one run
-        _assertRun(4, true, 6, 3);
-        _assertRun(5, true, 7, 2);
-        _assertRun(6, true, 8, 1);
-        _assertRun(7, false, 0, 2);
+        // successors, so they form one span
+        _assertSpan(4, true, 6, 3);
+        _assertSpan(5, true, 7, 2);
+        _assertSpan(6, true, 8, 1);
+        _assertSpan(7, false, 0, 2);
 
         // three generations
         vm.recordLogs();
@@ -628,7 +628,7 @@ abstract contract ConsolidationBase is Test, TokenTarget {
         _assertMask(fm, _arr(0, 4, 6, 8), "three generations");
         assertEq(events, 4);
         assertEq(t.frozenBalanceOf(A), 1);
-        (bool f,) = t.frozenRunAt(2);
+        (bool f,) = t.frozenSpanAt(2);
         assertFalse(f);
 
         // freezing from the middle generation: only toward the successors
@@ -637,7 +637,7 @@ abstract contract ConsolidationBase is Test, TokenTarget {
         logs = vm.getRecordedLogs();
         (fm, events) = _freezeMask(logs, FROZEN_SIG, R2, 9);
         _assertMask(fm, _arr(5, 7), "from the middle generation");
-        (f,) = t.frozenRunAt(2);
+        (f,) = t.frozenSpanAt(2);
         assertFalse(f, "not backwards");
         assertEq(t.frozenBalanceOf(A), 2);
         assertEq(t.transferableBalanceOf(A, B), 0);
@@ -660,9 +660,9 @@ abstract contract ConsolidationBase is Test, TokenTarget {
 
         // unfreezing the middle generation: the earlier generation is not affected
         _unfreeze(4, 1, R1);
-        (f,) = t.frozenRunAt(0);
+        (f,) = t.frozenSpanAt(0);
         assertTrue(f, "0 stays frozen for r1");
-        (f,) = t.frozenRunAt(8);
+        (f,) = t.frozenSpanAt(8);
         assertFalse(f, "8 unfrozen through 4 -> 6 -> 8");
         (uint256 amt, uint256 entries) = _reasonAmount(A, R2);
         assertEq(amt, 1);
@@ -706,7 +706,7 @@ abstract contract ConsolidationBase is Test, TokenTarget {
     }
 
     function _assertFrozen(uint256 serial, bool want, string memory what) internal view {
-        (bool f,) = t.frozenRunAt(serial);
+        (bool f,) = t.frozenSpanAt(serial);
         assertEq(f, want, what);
     }
 
@@ -848,11 +848,11 @@ abstract contract ConsolidationBase is Test, TokenTarget {
         assertEq(classEvents, 1);
         assertGt(classAt, lastConsol, "SliceClassified after the SliceConsolidated events");
         _assertNoTransferEvents(logs);
-        (bytes32 cid, uint256 len) = t.classRunAt(9);
+        (bytes32 cid, uint256 len) = t.classSpanAt(9);
         assertEq(cid, W);
         assertEq(len, 4);
         // the class of the old serials does not change
-        (cid,) = t.classRunAt(0);
+        (cid,) = t.classSpanAt(0);
         assertEq(cid, W);
         // the amounts reported by classesOf do not change
         (bytes32[] memory cs1, uint256[] memory am1) = t.classesOf(A);
@@ -871,12 +871,12 @@ abstract contract ConsolidationBase is Test, TokenTarget {
         n = _consolidate(A, _arr(5), _arr(2));
         logs = vm.getRecordedLogs();
         assertEq(_datas(logs, CLASS_SIG).length, 0, "no SliceClassified for the default class");
-        (cid, len) = t.classRunAt(n);
+        (cid, len) = t.classSpanAt(n);
         assertEq(cid, bytes32(0));
         assertEq(len, 2);
         // a third class
         n = _consolidate(A, _arr(8), _arr(1));
-        (cid,) = t.classRunAt(n);
+        (cid,) = t.classSpanAt(n);
         assertEq(cid, N);
     }
 
@@ -891,7 +891,7 @@ abstract contract ConsolidationBase is Test, TokenTarget {
         vm.expectRevert(abi.encodeWithSelector(IERCXXXX.ERCXXXXNotConsolidatable.selector, A, 4, 1));
         t.consolidateSlices(_arr(0, 2, 4), _arr(1, 1, 1));
         uint256 n = _consolidate(A, _arr(0, 2), _arr(1, 1));
-        (bytes32 cid, uint256 len) = t.classRunAt(n);
+        (bytes32 cid, uint256 len) = t.classSpanAt(n);
         assertEq(cid, W);
         assertEq(len, 2);
         assertEq(t.transferableBalanceOf(A, B), 1);
@@ -910,15 +910,15 @@ abstract contract ConsolidationBase is Test, TokenTarget {
         t.consolidateSlices(_arr(0, 4), _arr(3, 3));
         _unfreeze(5, 1, R1);
         uint256 n = _consolidate(A, _arr(0, 4), _arr(3, 3));
-        (bytes32 cid, uint256 len) = t.classRunAt(n);
+        (bytes32 cid, uint256 len) = t.classSpanAt(n);
         assertEq(cid, W);
         assertEq(len, 6);
         // freezing the old serials propagates to the new serials; the class does not change
         _freeze(0, 7, R1);
-        (bool f, uint256 fl) = t.frozenRunAt(n);
+        (bool f, uint256 fl) = t.frozenSpanAt(n);
         assertTrue(f);
         assertEq(fl, 6);
-        (cid,) = t.classRunAt(n);
+        (cid,) = t.classSpanAt(n);
         assertEq(cid, W);
     }
 }
@@ -1022,7 +1022,7 @@ contract ConsolidationParams is Test {
 
 /// @dev A token that does not inherit the consolidation module (clause 7 of "Consolidation" in the draft):
 ///      consolidateSlices reverts with the implementation's own error for every caller and every argument, without
-///      checking the arguments first; for an issued serial, consolidatedRunAt returns the whole run from it to the
+///      checking the arguments first; for an issued serial, consolidatedSpanAt returns the whole span from it to the
 ///      last issued serial, and for a serial not issued it returns (false, 0, 0); there are no consolidation
 ///      records, and freezes and unfreezes do not propagate. For each target that keeps consolidation closed, the
 ///      closed behavior is also asserted in the conformance tests.
@@ -1050,16 +1050,16 @@ contract ConsolidationClosed is Test {
         t.mint(A, 2);
     }
 
-    function _assertRuns(ITestToken t) internal view {
+    function _assertSpans(ITestToken t) internal view {
         uint256[4] memory serials = [uint256(0), 3, 5, 6];
         uint256[4] memory lens = [uint256(6), 3, 1, 0];
         for (uint256 i; i < 4; ++i) {
-            (bool c, uint256 succ, uint256 len) = t.consolidatedRunAt(serials[i]);
+            (bool c, uint256 succ, uint256 len) = t.consolidatedSpanAt(serials[i]);
             assertFalse(c);
             assertEq(succ, 0);
-            assertEq(len, lens[i], "the run reaches the last issued serial");
+            assertEq(len, lens[i], "the span reaches the last issued serial");
         }
-        (bool c2, uint256 s2, uint256 l2) = t.consolidatedRunAt(type(uint256).max);
+        (bool c2, uint256 s2, uint256 l2) = t.consolidatedSpanAt(type(uint256).max);
         assertFalse(c2);
         assertEq(s2, 0);
         assertEq(l2, 0);
@@ -1105,20 +1105,20 @@ contract ConsolidationClosed is Test {
         ITestToken t = ITestToken(address(new PresetBothStack("Serial", "SRL", 6, address(this))));
         _holdings(t);
         _assertAlwaysReverts(t, ERCXXXX.ERCXXXXConsolidationClosed.selector);
-        _assertRuns(t);
+        _assertSpans(t);
         _assertFreezeDoesNotPropagate(t);
         _assertAlwaysReverts(t, ERCXXXX.ERCXXXXConsolidationClosed.selector);
     }
 
     function test_coreSorted() public {
         ITestToken t = ITestToken(address(new PresetCoreSorted("Serial", "SRL", 6, address(this))));
-        (bool c, uint256 succ, uint256 len) = t.consolidatedRunAt(0);
+        (bool c, uint256 succ, uint256 len) = t.consolidatedSpanAt(0);
         assertFalse(c);
         assertEq(succ, 0);
         assertEq(len, 0, "nothing issued yet");
         _holdings(t);
         _assertAlwaysReverts(t, ERCXXXX.ERCXXXXConsolidationClosed.selector);
-        _assertRuns(t);
+        _assertSpans(t);
     }
 }
 

@@ -13,9 +13,9 @@ contract InterfaceIdsTest is Test {
     function test_specInterfaceIds() public pure {
         // The two consolidation functions belong to the core interface; there is no separate interface id for
         // consolidation.
-        assertEq(type(IERCXXXX).interfaceId, bytes4(0x58875f52));
-        assertEq(type(IERCXXXXFreezable).interfaceId, bytes4(0x573136e9));
-        assertEq(type(IERCXXXXClassified).interfaceId, bytes4(0xee27ff45));
+        assertEq(type(IERCXXXX).interfaceId, bytes4(0x668ccf00));
+        assertEq(type(IERCXXXXFreezable).interfaceId, bytes4(0x6eb84bb0));
+        assertEq(type(IERCXXXXClassified).interfaceId, bytes4(0xb62c1e43));
         assertEq(type(IERCXXXXAcceptance).interfaceId, bytes4(0x4689efd4));
         // The value a recipient returns to accept is the selector of this function (clause 2 of "Acceptance
         // check" in the draft), which is also the interface id above.

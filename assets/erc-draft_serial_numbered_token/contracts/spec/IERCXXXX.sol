@@ -70,13 +70,13 @@ interface IERCXXXX /* is IERC20, IERC165 */ {
         external
         returns (uint256 newStart);
 
-    /// @notice Whether `serial` has been consolidated, the serial its unit received, and a run of
+    /// @notice Whether `serial` has been consolidated, the serial its unit received, and a span of
     ///         serials that were consolidated together with it.
     /// @dev If `consolidated` is true, the unit that had the serial `serial + i` received the
     ///      serial `successor + i`, for every `i < length`. If it is false, none of the `length`
     ///      consecutive serials starting at `serial` has been consolidated and `successor` is
     ///      zero. `length` is zero if `serial` has not been issued.
-    function consolidatedRunAt(uint256 serial)
+    function consolidatedSpanAt(uint256 serial)
         external
         view
         returns (bool consolidated, uint256 successor, uint256 length);

@@ -60,7 +60,7 @@ abstract contract ERCXXXXClassified is ERCXXXX, IERCXXXXClassified {
 
     // ───────────────────────── IERCXXXXClassified ─────────────────────────
 
-    function classRunAt(uint256 serial) public view virtual returns (bytes32 classId, uint256 length) {
+    function classSpanAt(uint256 serial) public view virtual returns (bytes32 classId, uint256 length) {
         uint256 issued = serialsIssued();
         if (serial >= issued) return (bytes32(0), 0);
         (, uint256 segEnd, bytes32 c) = _classSeg(serial);

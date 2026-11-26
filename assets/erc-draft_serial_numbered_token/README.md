@@ -48,7 +48,7 @@ These results were obtained with forge 1.8.0 and forge-std 1.17.0, with the sett
 
 ## Snapshot
 
-The code is a snapshot of commit `cd940c97cd800e07bfd2f507932b0a67f248dd7e` of the repository in which the draft and this implementation are developed. Against that commit, the snapshot has the name prefix replaced by `ERCXXXX`, comments translated to English, gas benchmarks and experimental variants left out, and the example token added.
+The code is a snapshot of commit `cd940c97cd800e07bfd2f507932b0a67f248dd7e` of the repository in which the draft and this implementation are developed. Against that commit, the snapshot has the name prefix replaced by `ERCXXXX`, comments translated to English, gas benchmarks and experimental variants left out, and the example token added. After the snapshot was taken, the three queries `frozenSpanAt`, `classSpanAt` and `consolidatedSpanAt` were renamed together with the draft; in that commit their names end in `RunAt`.
 
 ## Code size
 
@@ -58,17 +58,17 @@ The table gives the runtime size in bytes of the test presets in `test/presets/P
 
 | Combination | Contract measured (stack / sorted array) | Slice stack | Sorted array | Fits |
 |---|---|---:|---:|---|
-| Core | `PresetCoreStack` / `PresetCoreSorted` | 12,454 | 14,760 | yes |
-| Core, acceptance check | `PresetAcceptStack` / `PresetAcceptSorted` | 13,172 | 15,478 | yes |
-| Core, consolidation | `PresetCoreConsolStack` / `PresetCoreConsolSorted` | 17,634 | 20,592 | yes |
-| Classes | `PresetClassStack` / `PresetClassSorted` | 20,491 | 22,798 | yes |
-| Classes, consolidation | `PresetClassConsolStack` / `PresetClassConsolSorted` | 25,840 | 28,799 | no |
-| Freezing | `PresetFreezeStack` / `PresetFreezeSorted` | 27,040 | 29,338 | no |
-| Freezing, consolidation | `PresetFreezeConsolStack` / `PresetFreezeConsolSorted` | 34,725 | 37,684 | no |
-| Freezing, classes | `PresetBothStack` / `PresetBothSorted` | 31,896 | 34,194 | no |
-| Freezing, classes, acceptance check | `PresetAllStack` / `PresetAllSorted` | 32,665 | 34,963 | no |
-| Freezing, classes, consolidation | `PresetBothConsolStack` / `PresetBothConsolSorted` | 39,717 | 42,676 | no |
-| Freezing, classes, acceptance check, consolidation, no burning | `ERCXXXXExampleToken` | 39,333 | | no |
+| Core | `PresetCoreStack` / `PresetCoreSorted` | 12,453 | 14,759 | yes |
+| Core, acceptance check | `PresetAcceptStack` / `PresetAcceptSorted` | 13,171 | 15,477 | yes |
+| Core, consolidation | `PresetCoreConsolStack` / `PresetCoreConsolSorted` | 17,633 | 20,591 | yes |
+| Classes | `PresetClassStack` / `PresetClassSorted` | 20,490 | 22,797 | yes |
+| Classes, consolidation | `PresetClassConsolStack` / `PresetClassConsolSorted` | 25,839 | 28,798 | no |
+| Freezing | `PresetFreezeStack` / `PresetFreezeSorted` | 27,039 | 29,337 | no |
+| Freezing, consolidation | `PresetFreezeConsolStack` / `PresetFreezeConsolSorted` | 34,724 | 37,683 | no |
+| Freezing, classes | `PresetBothStack` / `PresetBothSorted` | 31,895 | 34,193 | no |
+| Freezing, classes, acceptance check | `PresetAllStack` / `PresetAllSorted` | 32,664 | 34,962 | no |
+| Freezing, classes, consolidation | `PresetBothConsolStack` / `PresetBothConsolSorted` | 39,716 | 42,675 | no |
+| Freezing, classes, acceptance check, consolidation, no burning | `ERCXXXXExampleToken` | 39,332 | | no |
 
 So, as single contracts, only the core, the core with the acceptance check, the core with consolidation, and the classification extension without consolidation can be deployed where EIP-170 applies. Every combination that includes the freezing extension is over the limit, the freezing extension alone by about 2,500 bytes on the slice stack.
 

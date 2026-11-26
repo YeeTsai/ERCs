@@ -46,7 +46,7 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 - **Successor**: the new serial that the unit of a consolidated serial received in that consolidation.
 - **Reason**: a `bytes32` value that identifies the cause of a freeze.
 - **Frozen**: a serial is frozen when it is frozen for at least one reason.
-- **Run**: a sequence of consecutive serials starting at a given serial that share the same state, where the state is whether a serial is frozen, its class, or whether it is consolidated. A run is independent of holders: it can span the serials of several holders, and it can include destroyed or consolidated serials. It is up to a caller that is interested in only one holding to truncate the run to the slices of that holding.
+- **Span**: the sequence of consecutive serials that `frozenSpanAt`, `classSpanAt` and `consolidatedSpanAt` return: it starts at the serial queried, and every serial in it has the same state as that serial. The state is whether a serial is frozen, its class, or whether it is consolidated. A span is thus a slice whose serials share one state, given by the serial queried and the length returned. It starts at the serial queried, which need not be where that state begins, and it need not reach where that state ends, because these queries are not required to return the longest one. In a span returned by `consolidatedSpanAt`, the successors of the serials are consecutive as well. A span is independent of holders: it can contain the serials of several holders, and it can include destroyed or consolidated serials. It is up to a caller that is interested in only one holding to truncate the span to the slices of that holding.
 
 ### Core interface
 
@@ -120,20 +120,20 @@ interface IERCXXXX /* is IERC20, IERC165 */ {
         external
         returns (uint256 newStart);
 
-    /// @notice Whether `serial` has been consolidated, the serial its unit received, and a run of
+    /// @notice Whether `serial` has been consolidated, the serial its unit received, and a span of
     ///         serials that were consolidated together with it.
     /// @dev If `consolidated` is true, the unit that had the serial `serial + i` received the
     ///      serial `successor + i`, for every `i < length`. If it is false, none of the `length`
     ///      consecutive serials starting at `serial` has been consolidated and `successor` is
     ///      zero. `length` is zero if `serial` has not been issued.
-    function consolidatedRunAt(uint256 serial)
+    function consolidatedSpanAt(uint256 serial)
         external
         view
         returns (bool consolidated, uint256 successor, uint256 length);
 }
 ```
 
-`supportsInterface` MUST return `true` for `0x58875f52`, the ERC-165 identifier of `IERCXXXX`.
+`supportsInterface` MUST return `true` for `0x668ccf00`, the ERC-165 identifier of `IERCXXXX`.
 
 ### Serial model
 
@@ -238,8 +238,8 @@ A consolidation does not transfer units. It is not among the operations that "Tr
 
 Clauses 9 to 11 specify the queries on consolidation records.
 
-9. `consolidatedRunAt(serial)` reports whether `serial` is consolidated, its successor, and a run starting at it (see "Definitions"). For an issued `serial`, it MUST return a `(consolidated, successor, length)` that satisfies the following conditions: `length` is at least 1; `serial + length` is not greater than `serialsIssued()`; if `consolidated` is `true`, the serials `serial` through `serial + length - 1` are all consolidated and, for every `0 <= k < length`, the successor of the serial `serial + k` is `successor + k`; if `consolidated` is `false`, none of these serials is consolidated and `successor` is zero. For a `serial` that has not been issued, it MUST return `(false, 0, 0)`.
-10. `consolidatedRunAt` SHOULD return the largest `length` that satisfies clause 9. Callers MUST NOT assume that the returned run is the longest.
+9. `consolidatedSpanAt(serial)` reports whether `serial` is consolidated, its successor, and a span starting at it (see "Definitions"). For an issued `serial`, it MUST return a `(consolidated, successor, length)` that satisfies the following conditions: `length` is at least 1; `serial + length` is not greater than `serialsIssued()`; if `consolidated` is `true`, the serials `serial` through `serial + length - 1` are all consolidated and, for every `0 <= k < length`, the successor of the serial `serial + k` is `successor + k`; if `consolidated` is `false`, none of these serials is consolidated and `successor` is zero. For a `serial` that has not been issued, it MUST return `(false, 0, 0)`.
+10. `consolidatedSpanAt` SHOULD return the largest `length` that satisfies clause 9. Callers MUST NOT assume that the returned span is the longest.
 11. A successor can itself be consolidated by a later consolidation. To obtain the serial a unit has now, a caller starts from any serial the unit has had and queries repeatedly until `consolidated` is `false`. This proposal defines no function that looks up the old serial from the new one; the correspondence in that direction is given by the `SliceConsolidated` events.
 
 ### Operations outside the core interface
@@ -331,11 +331,11 @@ interface IERCXXXXFreezable /* is IERCXXXX */ {
     ///         `from`, without the consent of `from`.
     function destroySlice(address from, uint256 start, uint256 amount) external;
 
-    /// @notice Whether `serial` is frozen for at least one reason, and a run of serials sharing
+    /// @notice Whether `serial` is frozen for at least one reason, and a span of serials sharing
     ///         that status.
     /// @dev The `length` consecutive serials starting at `serial` are all frozen or all not
     ///      frozen. `length` is zero if `serial` has not been issued.
-    function frozenRunAt(uint256 serial) external view returns (bool frozen, uint256 length);
+    function frozenSpanAt(uint256 serial) external view returns (bool frozen, uint256 length);
 
     /// @notice The number of serials held by `account` that are frozen for at least one reason.
     function frozenBalanceOf(address account) external view returns (uint256);
@@ -356,7 +356,7 @@ interface IERCXXXXFreezable /* is IERCXXXX */ {
 }
 ```
 
-`supportsInterface` MUST return `true` for `0x573136e9`, the ERC-165 identifier of `IERCXXXXFreezable`.
+`supportsInterface` MUST return `true` for `0x6eb84bb0`, the ERC-165 identifier of `IERCXXXXFreezable`.
 
 This extension specifies how serials are frozen and unfrozen, and how an authorized party makes forced transfers of serials or destroys them. It does not specify which reasons exist or who can perform these operations; these are up to the implementation.
 
@@ -380,8 +380,8 @@ In a contract that implements this extension, a frozen serial is not transferabl
 
 A reason is *in use* if and only if some serial that is issued and not destroyed is currently frozen for it.
 
-1. `frozenRunAt(serial)` reports whether `serial` is frozen, together with a sequence of consecutive serials starting at it that share the same frozen state, that is, a run (see "Definitions"). For an issued `serial`, it MUST return a `(frozen, length)` that satisfies the following conditions: `length` is at least 1; `serial + length` is not greater than `serialsIssued()`; the serials `serial` through `serial + length - 1` are all frozen if `frozen` is `true` and are all not frozen if `frozen` is `false`. The state here is only whether a serial is frozen; the reasons for which these serials are frozen can differ from one serial to another. Destroyed and consolidated serials have a frozen state too (see clauses 1 and 3 of "Freezing and unfreezing"), and this clause applies to them as well. For a `serial` that has not been issued, it MUST return `(false, 0)`.
-2. `frozenRunAt` SHOULD return the largest `length` that satisfies clause 1. Callers MUST NOT assume that the returned run is the longest.
+1. `frozenSpanAt(serial)` reports whether `serial` is frozen, together with a sequence of consecutive serials starting at it that share the same frozen state, that is, a span (see "Definitions"). For an issued `serial`, it MUST return a `(frozen, length)` that satisfies the following conditions: `length` is at least 1; `serial + length` is not greater than `serialsIssued()`; the serials `serial` through `serial + length - 1` are all frozen if `frozen` is `true` and are all not frozen if `frozen` is `false`. The state here is only whether a serial is frozen; the reasons for which these serials are frozen can differ from one serial to another. Destroyed and consolidated serials have a frozen state too (see clauses 1 and 3 of "Freezing and unfreezing"), and this clause applies to them as well. For a `serial` that has not been issued, it MUST return `(false, 0)`.
+2. `frozenSpanAt` SHOULD return the largest `length` that satisfies clause 1. Callers MUST NOT assume that the returned span is the longest.
 3. `frozenBalanceOf(account)` MUST equal the number of frozen serials held by `account`.
 4. `freezeReasonsOf(account)` MUST return two arrays of the same length. The values in `reasons` MUST be pairwise distinct; every `amounts[i]` MUST be greater than zero and MUST equal the number of serials held by `account` that are frozen for `reasons[i]`. Every reason for which some serial held by `account` is frozen MUST appear in `reasons`. The order of the entries in the arrays is not specified.
 5. A serial that is frozen for several reasons is counted once under each of them, so the sum of `amounts` can be greater than `frozenBalanceOf(account)`.
@@ -422,11 +422,11 @@ interface IERCXXXXClassified /* is IERCXXXX */ {
     ///         set to `classId`.
     event SliceClassified(uint256 start, uint256 amount, bytes32 classId);
 
-    /// @notice The class of `serial`, and a run of serials of that class. Zero is the default
+    /// @notice The class of `serial`, and a span of serials of that class. Zero is the default
     ///         class.
     /// @dev The `length` consecutive serials starting at `serial` all have the class `classId`.
     ///      `length` is zero if `serial` has not been issued.
-    function classRunAt(uint256 serial) external view returns (bytes32 classId, uint256 length);
+    function classSpanAt(uint256 serial) external view returns (bytes32 classId, uint256 length);
 
     /// @notice Whether the class `classId` allows a serial of that class held by `from` to be
     ///         moved to `to` at present.
@@ -448,7 +448,7 @@ interface IERCXXXXClassified /* is IERCXXXX */ {
 }
 ```
 
-`supportsInterface` MUST return `true` for `0xee27ff45`, the ERC-165 identifier of `IERCXXXXClassified`.
+`supportsInterface` MUST return `true` for `0xb62c1e43`, the ERC-165 identifier of `IERCXXXXClassified`.
 
 This extension specifies how classes are attached to serials, how they are reported, and how transfers obey the flow rules of classes. It does not specify which classes exist, or who can set or change them; these are up to the implementation. It does, however, require that every class an implementation uses can describe itself through the contract. How classes can be used is shown in "Examples of classes".
 
@@ -456,7 +456,7 @@ This extension specifies how classes are attached to serials, how they are repor
 
 1. Every issued serial has a class, which is a `bytes32` value, written `classId` in the interface. Zero is the default class.
 2. The meaning of a non-zero class is defined by the implementation and described through `classInfo` (see "Description"). An implementation SHOULD also document who can set and change classes.
-3. `classRunAt(serial)` reports the class of `serial` together with a sequence of consecutive serials starting at it that have the same class, that is, a run (see "Definitions"). For an issued `serial`, it MUST return a `(classId, length)` that satisfies the following conditions: `classId` is the current class of `serial`; `length` is at least 1; `serial + length` is not greater than `serialsIssued()`; and the serials `serial` through `serial + length - 1` all have the class `classId`. For a `serial` that has not been issued, it MUST return `(bytes32(0), 0)`. It SHOULD return the largest `length` that satisfies these conditions, and callers MUST NOT assume that the returned run is the longest.
+3. `classSpanAt(serial)` reports the class of `serial` together with a sequence of consecutive serials starting at it that have the same class, that is, a span (see "Definitions"). For an issued `serial`, it MUST return a `(classId, length)` that satisfies the following conditions: `classId` is the current class of `serial`; `length` is at least 1; `serial + length` is not greater than `serialsIssued()`; and the serials `serial` through `serial + length - 1` all have the class `classId`. For a `serial` that has not been issued, it MUST return `(bytes32(0), 0)`. It SHOULD return the largest `length` that satisfies these conditions, and callers MUST NOT assume that the returned span is the longest.
 4. After every state-changing call has completed, the class of a serial MUST equal the `classId` of the most recent `SliceClassified` event so far that covers it; if there is no such event, it MUST be zero. Any operation that changes a class, including one that issues serials with a non-zero class, therefore has to emit the corresponding event. An event can cover serials whose class does not change.
 5. Every `SliceClassified(start, amount, classId)` event MUST satisfy `amount > 0` and `start + amount <= serialsIssued()`, and MUST be emitted after the `Transfer` event that issues the serials it covers. An operation that issues serials with a non-zero class therefore has to emit the `Transfer` event of the issuance first and `SliceClassified` after it.
 6. A class follows its serial. Under clause 4, neither a change of the holder of a serial nor the destruction or consolidation of the serial changes its class, unless the same operation emits a `SliceClassified` event for it.
@@ -570,7 +570,7 @@ This proposal changes none of the functions or events of ERC-20 and only settles
 
 ### Form of the queries and events
 
-`transferableBalanceOf` is part of the core and takes the destination as a parameter. Wallets and contracts then need to ask only one question, namely how much can be transferred from here to there now, whichever extensions the token implements. `frozenRunAt` and `classRunAt` return, together with the state of a serial, the length of the run of serials in the same state that starts at it, because a token with 18 decimals has 10^18 serials per whole token and querying serial by serial would be pointless. This proposal provides no on-chain lookup of the holder of a serial, because that would need an ordered index that is updated on every transfer; the holder of a serial can be derived from the events.
+`transferableBalanceOf` is part of the core and takes the destination as a parameter. Wallets and contracts then need to ask only one question, namely how much can be transferred from here to there now, whichever extensions the token implements. `frozenSpanAt` and `classSpanAt` return, together with the state of a serial, the length of the span of serials in the same state that starts at it, because a token with 18 decimals has 10^18 serials per whole token and querying serial by serial would be pointless. This proposal provides no on-chain lookup of the holder of a serial, because that would need an ordered index that is updated on every transfer; the holder of a serial can be derived from the events.
 
 The slices a transfer moves are reported slice by slice in `SliceTransferred` events, one slice per event, and a batch event carrying arrays is not used: the most common transfer moves a single slice, for which a single event is cheaper, and indexers need to support only one encoding. The `SliceTransferred` event accompanies the ERC-20 `Transfer` event and never replaces it, which differs from [ERC-2309](./eip-2309.md). The order of the events is specified, so an indexer can attribute every `SliceTransferred` event to the `Transfer` it belongs to without heuristics.
 
@@ -749,10 +749,10 @@ On a token that supports the acceptance check, a receiving contract can make tra
 This subsection applies to tokens that open consolidation.
 
 - **The cost of a freeze grows with consolidation records.** Without consolidation, the cost of freezing a slice does not depend on how many holders the units have since been divided among. With consolidation, a freeze propagates once more for every consolidation record it passes through, and the number of records depends on how many times the holders of these units have consolidated. Whoever holds stolen units can divide them among many accounts and consolidate once in each, or consolidate the same units again and again, so that one freeze has to pass through many records. Each of these consolidations costs its caller gas as well. An implementation should make creating a record cost no less than a freeze passing through it, for example by requiring a consolidation to include at least a certain number of slices (clause 7 of "Consolidation"). A consolidation whose serials all lie inside one slice that `sliceAt` reports removes no slice and only leaves a record; an implementation can refuse it. An implementation in which only listed accounts can consolidate is not affected.
-- **A freeze might take several transactions.** A freeze of any serial a unit has had propagates to the serial it has now, so consolidating ahead of a freeze does not make the freeze miss. But when a freeze passes through too many records, it does not fit in one transaction. The authorized party can split the slice into several calls; when a unit has been consolidated many times, it can also freeze the serial the unit has now, and such a freeze passes only through the records created after that serial was looked up. The serial a unit has now can be found by calling `consolidatedRunAt` step by step, or computed from the `SliceConsolidated` events. Between these calls, units that are not yet frozen can still be transferred away; a transfer does not change serials, so the later calls still freeze them. The authorized party should first estimate the cost of a freeze with a read-only call.
+- **A freeze might take several transactions.** A freeze of any serial a unit has had propagates to the serial it has now, so consolidating ahead of a freeze does not make the freeze miss. But when a freeze passes through too many records, it does not fit in one transaction. The authorized party can split the slice into several calls; when a unit has been consolidated many times, it can also freeze the serial the unit has now, and such a freeze passes only through the records created after that serial was looked up. The serial a unit has now can be found by calling `consolidatedSpanAt` step by step, or computed from the `SliceConsolidated` events. Between these calls, units that are not yet frozen can still be transferred away; a transfer does not change serials, so the later calls still freeze them. The authorized party should first estimate the cost of a freeze with a read-only call.
 - **Cost and limit of a consolidation.** A consolidation pays the storage cost of the record it leaves, and the number of slices one consolidation can handle is limited by the gas available to a transaction. An account with very many slices has to consolidate over several transactions, each of which yields one new slice.
 - **Consolidating on behalf of another account.** After serials change, calls that name units by their old serials fail, for example a `transferSlices` or `burnSlices` that has been signed and is not yet included. An implementation that provides a function for consolidating on behalf of another account therefore must restrict who can call it, or open it only for accounts that hold more than a certain number of slices; otherwise anyone can make other holders' transfers by serial fail. A party that needs certain units to keep their serials, for example a contract that registers collateral by serial, can freeze these units: frozen units cannot be consolidated.
-- **Serials kept off-chain.** After a consolidation, a list of serials kept off-chain is not updated automatically. A party that screens the units it receives by serial (see "Holders can choose which units to send") has to follow the `SliceConsolidated` events, or use `consolidatedRunAt`, to translate the serials on its list into the serials the units have now; the new serials alone do not show where the units come from.
+- **Serials kept off-chain.** After a consolidation, a list of serials kept off-chain is not updated automatically. A party that screens the units it receives by serial (see "Holders can choose which units to send") has to follow the `SliceConsolidated` events, or use `consolidatedSpanAt`, to translate the serials on its list into the serials the units have now; the new serials alone do not show where the units come from.
 - **Serial space.** Each consolidation consumes as many new serials as the number of units it consolidates (see "Finite serial space").
 
 ### Balance includes units that cannot be transferred

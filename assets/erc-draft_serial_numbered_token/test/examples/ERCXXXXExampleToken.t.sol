@@ -110,8 +110,8 @@ contract ERCXXXXExampleTokenTest is Test {
         vm.prank(admin);
         t.freezeSlice(20, 10, COURT);
 
-        _assertFrozenRun(20, true, 10);
-        _assertFrozenRun(0, false, 20);
+        _assertFrozenSpan(20, true, 10);
+        _assertFrozenSpan(0, false, 20);
         assertEq(t.frozenBalanceOf(alice), 10);
         assertEq(t.transferableBalanceOf(alice, bob), 90);
         (bytes32[] memory reasons, uint256[] memory amounts) = t.freezeReasonsOf(alice);
@@ -164,7 +164,7 @@ contract ERCXXXXExampleTokenTest is Test {
         t.mint(alice, 60); // [40, 100) default class
         vm.stopPrank();
 
-        (bytes32 classId, uint256 len) = t.classRunAt(0);
+        (bytes32 classId, uint256 len) = t.classSpanAt(0);
         assertEq(classId, VOUCHER);
         assertEq(len, 40);
         assertTrue(t.classAllows(VOUCHER, alice, merchant));
@@ -232,9 +232,9 @@ contract ERCXXXXExampleTokenTest is Test {
         assertEq(t.balanceOf(alice), 20);
         assertEq(t.sliceCount(alice), 1);
         _assertSlice(alice, 0, 30, 20);
-        _assertConsolidatedRun(0, true, 30, 10);
-        _assertConsolidatedRun(20, true, 40, 10);
-        _assertConsolidatedRun(10, false, 0, 10);
+        _assertConsolidatedSpan(0, true, 30, 10);
+        _assertConsolidatedSpan(20, true, 40, 10);
+        _assertConsolidatedSpan(10, false, 0, 10);
 
         // Freezing old serials also freezes their successors.
         vm.expectEmit(address(t));
@@ -243,8 +243,8 @@ contract ERCXXXXExampleTokenTest is Test {
         emit IERCXXXXFreezable.SliceFrozen(COURT, 30, 10);
         vm.prank(admin);
         t.freezeSlice(0, 10, COURT);
-        _assertFrozenRun(30, true, 10);
-        _assertFrozenRun(40, false, 10);
+        _assertFrozenSpan(30, true, 10);
+        _assertFrozenSpan(40, false, 10);
         assertEq(t.frozenBalanceOf(alice), 10);
         assertEq(t.transferableBalanceOf(alice, bob), 10);
     }
@@ -293,20 +293,20 @@ contract ERCXXXXExampleTokenTest is Test {
         assertEq(a, amount, "slice amount");
     }
 
-    function _assertFrozenRun(uint256 serial, bool frozen, uint256 length) internal view {
-        (bool f, uint256 len) = t.frozenRunAt(serial);
+    function _assertFrozenSpan(uint256 serial, bool frozen, uint256 length) internal view {
+        (bool f, uint256 len) = t.frozenSpanAt(serial);
         assertEq(f, frozen, "frozen");
-        assertEq(len, length, "frozen run length");
+        assertEq(len, length, "frozen span length");
     }
 
-    function _assertConsolidatedRun(uint256 serial, bool consolidated, uint256 successor, uint256 length)
+    function _assertConsolidatedSpan(uint256 serial, bool consolidated, uint256 successor, uint256 length)
         internal
         view
     {
-        (bool c, uint256 s, uint256 len) = t.consolidatedRunAt(serial);
+        (bool c, uint256 s, uint256 len) = t.consolidatedSpanAt(serial);
         assertEq(c, consolidated, "consolidated");
         assertEq(s, successor, "successor");
-        assertEq(len, length, "consolidated run length");
+        assertEq(len, length, "consolidated span length");
     }
 
     function _one(uint256 x) internal pure returns (uint256[] memory r) {

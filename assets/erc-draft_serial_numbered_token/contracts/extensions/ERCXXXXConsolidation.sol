@@ -9,7 +9,7 @@ import {SerialConsolidations} from "../utils/SerialConsolidations.sol";
 ///         keeps it closed by default: consolidateSlices always reverts.
 ///         A token that inherits this module opens consolidation: a holder moves its scattered units onto one slice
 ///         of newly issued consecutive serials, and the correspondence between old and new serials is recorded in
-///         the contract and queried with consolidatedRunAt. This module overrides these two functions of the core
+///         the contract and queried with consolidatedSpanAt. This module overrides these two functions of the core
 ///         and does not correspond to a separate interface, so it does not change supportsInterface.
 ///         When the freezing extension is inherited as well, freezes and unfreezes propagate along these records to
 ///         successors ("Freezing and consolidation" in the draft; the propagation is done in the freezing
@@ -37,10 +37,10 @@ import {SerialConsolidations} from "../utils/SerialConsolidations.sol";
 ///      Storage (see SerialConsolidations): one storage slot per record, plus a 256-ary bitmap tree keyed by old
 ///      start; the tree is expanded only where it branches, so when old starts are sparse each record mostly
 ///      creates only one new slot in the tree. Slices of one consolidation that are adjacent to one another
-///      become one record; records of different consolidations are not merged. consolidatedRunAt joins, at query
+///      become one record; records of different consolidations are not merged. consolidatedSpanAt joins, at query
 ///      time, the records that follow immediately in both the old serials and the successors, but at most 32
-///      more records after the record that contains the serial (SerialConsolidations.MAX_RUN_EXTENSION), so the
-///      cost of one query is bounded; when more records follow one another, the run returned is shorter than the
+///      more records after the record that contains the serial (SerialConsolidations.MAX_SPAN_EXTENSION), so the
+///      cost of one query is bounded; when more records follow one another, the span returned is shorter than the
 ///      longest one, which clause 10 of "Consolidation" in the draft allows.
 ///      Transfers by amount, transferSlices and forced operations do not read the consolidation records, and their
 ///      cost is not affected by this module.
@@ -68,14 +68,14 @@ abstract contract ERCXXXXConsolidation is ERCXXXX {
         return _consolidate(msg.sender, starts, amounts);
     }
 
-    function consolidatedRunAt(uint256 serial)
+    function consolidatedSpanAt(uint256 serial)
         public
         view
         virtual
         override
         returns (bool consolidated, uint256 successor, uint256 length)
     {
-        return _consolidations.runAt(serial, serialsIssued());
+        return _consolidations.spanAt(serial, serialsIssued());
     }
 
     // ───────────────────────── Hooks for deployment parameters ─────────────────────────

@@ -128,13 +128,13 @@ contract ERCXXXXExampleToken is
         return super.consolidateSlices(starts, amounts);
     }
 
-    function consolidatedRunAt(uint256 serial)
+    function consolidatedSpanAt(uint256 serial)
         public
         view
         override(ERCXXXX, ERCXXXXConsolidation)
         returns (bool, uint256, uint256)
     {
-        return super.consolidatedRunAt(serial);
+        return super.consolidatedSpanAt(serial);
     }
 
     function _hasRestrictions() internal view override(ERCXXXX, ERCXXXXFreezable, ERCXXXXClassified) returns (bool) {

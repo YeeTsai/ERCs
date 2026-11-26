@@ -19,7 +19,7 @@ import "../presets/Targets.sol";
 ///      bits directly; it is compared serial by serial with mBits, which is derived from events, to check that the
 ///      propagation, and the state it changes, are all reported by events.
 ///      Tokens that keep consolidation closed (clause 7 of "Consolidation" of the draft): consolidation is tried with
-///      arguments that would succeed, and must revert, and not for another reason; consolidatedRunAt is still
+///      arguments that would succeed, and must revert, and not for another reason; consolidatedSpanAt is still
 ///      compared serial by serial, and the model has no consolidated serials.
 contract ConformanceHandler is Test {
     bytes32 internal constant TRANSFER_SIG = keccak256("Transfer(address,address,uint256)");
@@ -960,7 +960,7 @@ contract ConformanceHandler is Test {
         for (uint256 i; i < actors.length; ++i) {
             _checkAccount(actors[i]);
         }
-        _checkRuns();
+        _checkSpans();
         _checkConsolidated();
         if (hasFreeze) {
             for (uint256 s; s < mIssued; ++s) {
@@ -974,9 +974,9 @@ contract ConformanceHandler is Test {
         _checkAccount(a);
     }
 
-    /// @dev Compares consolidatedRunAt with the model serial by serial (this implementation returns the longest run,
+    /// @dev Compares consolidatedSpanAt with the model serial by serial (this implementation returns the longest span,
     ///      shortened only when it spans more than 33 adjoining records); on a token that keeps consolidation closed
-    ///      the model has no consolidated serials, and every serial should get the whole run up to the last issued
+    ///      the model has no consolidated serials, and every serial should get the whole span up to the last issued
     ///      serial.
     ///      That the balances of the accounts sum to totalSupply is checked above; that no consolidated serial
     ///      appears in the enumeration of any account is checked by _checkAccount, which compares serial by serial
@@ -991,21 +991,21 @@ contract ConformanceHandler is Test {
             end[s] = same ? end[s + 1] : s + 1;
         }
         for (uint256 s; s < n; ++s) {
-            (bool c, uint256 succ, uint256 len) = token.consolidatedRunAt(s);
-            assertEq(c, mConsolidated[s], "consolidatedRunAt.consolidated");
-            assertEq(succ, mConsolidated[s] ? mSucc[s] : 0, "consolidatedRunAt.successor");
+            (bool c, uint256 succ, uint256 len) = token.consolidatedSpanAt(s);
+            assertEq(c, mConsolidated[s], "consolidatedSpanAt.consolidated");
+            assertEq(succ, mConsolidated[s] ? mSucc[s] : 0, "consolidatedSpanAt.successor");
             if (len != end[s] - s && mConsolidated[s]) {
                 // When extending along adjoining records, this implementation reads at most 32 more records, each
-                // of at least 1 serial, so a shortened run has at least 33 serials.
-                assertTrue(len >= 33 && len < end[s] - s, "consolidatedRunAt.length (capped)");
+                // of at least 1 serial, so a shortened span has at least 33 serials.
+                assertTrue(len >= 33 && len < end[s] - s, "consolidatedSpanAt.length (capped)");
             } else {
-                assertEq(len, end[s] - s, "consolidatedRunAt.length");
+                assertEq(len, end[s] - s, "consolidatedSpanAt.length");
             }
         }
-        (bool c2, uint256 s2, uint256 l2) = token.consolidatedRunAt(n);
+        (bool c2, uint256 s2, uint256 l2) = token.consolidatedSpanAt(n);
         assertFalse(c2);
         assertEq(s2, 0);
-        assertEq(l2, 0, "consolidatedRunAt beyond issued");
+        assertEq(l2, 0, "consolidatedSpanAt beyond issued");
     }
 
     function _checkAccount(address a) internal view {
@@ -1094,9 +1094,9 @@ contract ConformanceHandler is Test {
         }
     }
 
-    /// @dev Compares the runs with the model serial by serial. The model's runs are computed over all issued serials,
+    /// @dev Compares the spans with the model serial by serial. The model's spans are computed over all issued serials,
     ///      destroyed ones included.
-    function _checkRuns() internal view {
+    function _checkSpans() internal view {
         uint256 n = mIssued;
         uint256[] memory fEnd = new uint256[](n);
         uint256[] memory cEnd = new uint256[](n);
@@ -1109,25 +1109,25 @@ contract ConformanceHandler is Test {
         }
         for (uint256 s; s < n; ++s) {
             if (hasFreeze) {
-                (bool f, uint256 fl) = token.frozenRunAt(s);
-                assertEq(f, mBits[s] != 0, "frozenRunAt.frozen");
-                assertEq(fl, fEnd[s] - s, "frozenRunAt.length");
+                (bool f, uint256 fl) = token.frozenSpanAt(s);
+                assertEq(f, mBits[s] != 0, "frozenSpanAt.frozen");
+                assertEq(fl, fEnd[s] - s, "frozenSpanAt.length");
             }
             if (hasClass) {
-                (bytes32 c, uint256 cl) = token.classRunAt(s);
-                assertEq(c, mClass[s], "classRunAt.classId");
-                assertEq(cl, cEnd[s] - s, "classRunAt.length");
+                (bytes32 c, uint256 cl) = token.classSpanAt(s);
+                assertEq(c, mClass[s], "classSpanAt.classId");
+                assertEq(cl, cEnd[s] - s, "classSpanAt.length");
             }
         }
         if (hasFreeze) {
-            (bool f2, uint256 l2) = token.frozenRunAt(n);
+            (bool f2, uint256 l2) = token.frozenSpanAt(n);
             assertFalse(f2);
-            assertEq(l2, 0, "frozenRunAt beyond issued");
+            assertEq(l2, 0, "frozenSpanAt beyond issued");
         }
         if (hasClass) {
-            (bytes32 c2, uint256 l3) = token.classRunAt(n);
+            (bytes32 c2, uint256 l3) = token.classSpanAt(n);
             assertEq(c2, bytes32(0));
-            assertEq(l3, 0, "classRunAt beyond issued");
+            assertEq(l3, 0, "classSpanAt beyond issued");
         }
     }
 }

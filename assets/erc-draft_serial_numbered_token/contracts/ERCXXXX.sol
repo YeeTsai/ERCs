@@ -10,7 +10,7 @@ import {SerialHoldings} from "./holdings/SerialHoldings.sol";
 ///         interface (IERCXXXX); minting, burning, freezing and classification are in extension contracts, and how
 ///         holdings are stored is decided by a backend contract (a contract that inherits SerialHoldings).
 ///         Consolidation is part of the core interface but is closed by default (clause 7 of "Consolidation" in the
-///         draft): consolidateSlices always reverts, and consolidatedRunAt reports no consolidated serials. A token
+///         draft): consolidateSlices always reverts, and consolidatedSpanAt reports no consolidated serials. A token
 ///         that opens consolidation also inherits the module ERCXXXXConsolidation.
 ///         The token contract has to inherit both this contract and a backend, for example:
 ///
@@ -241,15 +241,15 @@ abstract contract ERCXXXX is SerialHoldings, IERC20Metadata, IERC20Errors, IERC1
     /// @dev Consolidation is closed by default: reverts with ERCXXXXConsolidationClosed for every caller and every
     ///      argument (clause 7 of "Consolidation" in the draft).
     ///      A token that opens consolidation inherits ERCXXXXConsolidation, which overrides this function and
-    ///      consolidatedRunAt.
+    ///      consolidatedSpanAt.
     function consolidateSlices(uint256[] calldata, uint256[] calldata) public virtual returns (uint256) {
         revert ERCXXXXConsolidationClosed();
     }
 
     /// @dev Consolidation is closed by default, so there are no consolidated serials: for an issued serial, returns
-    ///      (false, 0, serialsIssued() - serial), that is, the whole run from it to the last issued serial; for a
+    ///      (false, 0, serialsIssued() - serial), that is, the whole span from it to the last issued serial; for a
     ///      serial not yet issued, returns (false, 0, 0) (clauses 9 and 10 of "Consolidation" in the draft).
-    function consolidatedRunAt(uint256 serial)
+    function consolidatedSpanAt(uint256 serial)
         public
         view
         virtual
@@ -588,7 +588,7 @@ abstract contract ERCXXXX is SerialHoldings, IERC20Metadata, IERC20Errors, IERC1
         return false;
     }
 
-    /// @dev The run [lo, hi) of serials with the same state that contains serial, and the pile where these serials
+    /// @dev The slice [lo, hi) of serials with the same state that contains serial, and the pile where these serials
     ///      belong.
     ///      The pile where they belong depends only on the state of the serials, not on whom they are transferred to;
     ///      whether they are transferable is decided by _pileUsable(pile, from, to).

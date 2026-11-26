@@ -36,11 +36,11 @@ interface IERCXXXXFreezable /* is IERCXXXX */ {
     ///         `from`, without the consent of `from`.
     function destroySlice(address from, uint256 start, uint256 amount) external;
 
-    /// @notice Whether `serial` is frozen for at least one reason, and a run of serials sharing
+    /// @notice Whether `serial` is frozen for at least one reason, and a span of serials sharing
     ///         that status.
     /// @dev The `length` consecutive serials starting at `serial` are all frozen or all not
     ///      frozen. `length` is zero if `serial` has not been issued.
-    function frozenRunAt(uint256 serial) external view returns (bool frozen, uint256 length);
+    function frozenSpanAt(uint256 serial) external view returns (bool frozen, uint256 length);
 
     /// @notice The number of serials held by `account` that are frozen for at least one reason.
     function frozenBalanceOf(address account) external view returns (uint256);
