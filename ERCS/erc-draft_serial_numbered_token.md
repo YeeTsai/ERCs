@@ -26,6 +26,8 @@ Physical cash addresses identification with serial numbers. Ledgers built on uns
 
 State that needs to rest on specific units comes in more than one form. The same units might first be pledged and later be put under a judicial freeze, and it has to be possible to lift each of the two on its own. An issuer might also want some units to be freely transferable and others to be payable only to designated addresses. What these states have in common is that they are attached to units and have to remain in effect after the units are split and forwarded. Once units have a stable identity, all of these states have something to attach to.
 
+A stable identity is useful even when no state is attached to it. Which serials every movement transferred is recorded on-chain, and so is the correspondence between old and new serials when units are consolidated, so where a given set of units went is a fact that can be read directly and no longer has to be inferred with the conventions above. An exchange can check, before it credits an incoming transfer, whether the transfer contains serials taken in a theft, and investigators and courts rely on the same record. A token that provides no freezing offers all of this as well. What it establishes is where the units are, not who is responsible (see "Selection order can be influenced", "Holders can choose which units to send" and "Reduced fungibility and privacy").
+
 What is missing is a token whose units keep a stable identity across splits and transfers, with that identity recorded on-chain, while the token still behaves as ERC-20 everywhere ERC-20 is expected.
 
 ## Specification
