@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: CC0-1.0
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
 import {IERC20, IERC20Metadata, IERC20Errors, IERC165} from "./utils/IERC20.sol";

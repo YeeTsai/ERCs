@@ -76,6 +76,6 @@ EIP-7954 raises the limit to 65,536 bytes. It is scheduled for the Glamsterdam u
 
 Nothing in this package reduces the size: no module is split into separately deployed contracts or libraries, and no compiler setting was tuned for size. The tests are not affected, because the test EVM of forge does not enforce the limit by default. `forge build --sizes` exits with an error for the same reason the table has rows marked "no".
 
-## Copyright
+## License
 
-Copyright and related rights waived via [CC0](../../LICENSE.md).
+The code in `contracts/` and `test/` is licensed under the MIT License, as the header of each file states; the text of the license and the copyright notice are in [LICENSE.md](./LICENSE.md). The four interface files in `contracts/spec/` are the exception: they are identical to the code blocks of the draft, and for them, as for the draft and the documents in this directory, copyright and related rights are waived via [CC0](../../LICENSE.md).

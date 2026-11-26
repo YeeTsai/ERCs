@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: CC0-1.0
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
 /// @dev The ERC-20 interface. It is the same as OpenZeppelin's interface of the same name and is written out here,
