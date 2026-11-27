@@ -48,7 +48,7 @@ These results were obtained with forge 1.8.0 and forge-std 1.17.0, with the sett
 
 ## Snapshot
 
-The code is a snapshot of commit `fff05db08ea3e444e64659142775aa6f6bea84d3` of the repository in which the draft and this implementation are developed. Against that commit, the snapshot has the name prefix replaced by `ERCXXXX`, comments translated to English, gas benchmarks and experimental variants left out, the example token added, and a few local variables renamed for the spelling check of the ERCs repository.
+The code is a snapshot of commit `fff05db08ea3e444e64659142775aa6f6bea84d3` of the repository in which the draft and this implementation are developed. Against that commit, the snapshot has the name prefix replaced by `ERCXXXX`, comments translated to English, gas benchmarks and experimental variants left out, the example token added, a few identifiers renamed for the spelling check of the ERCs repository, and the wording of a few comments changed.
 
 ## Code size
 
@@ -83,7 +83,7 @@ The table gives the runtime size in bytes of the test presets in `test/presets/P
 | Freezing, classes, consolidation | `PresetBothConsolStack` / `PresetBothConsolSorted` | 24,103 | 27,259 | yes / no |
 | Freezing, classes, acceptance check, consolidation, no burning | `ERCXXXXExampleToken` | 23,699 | | yes |
 
-So every combination on the slice stack can be deployed where EIP-170 applies, together with its libraries. On the sorted array, which is there to compare data structures, the freezing and classification extensions together with the acceptance check or with consolidation are over the limit. The margins are small: `PresetBothConsolTunedStack`, the same combination as `PresetBothConsolStack` with the deployment parameters of consolidation overridden, is 24,522 bytes, 54 below the limit, and another compiler version or setting can take a combination over it.
+With the burn module added to the example token, so that it has every module, its runtime code is 24,225 bytes. The functions that a token adds itself, for issuance and administration, count toward its size as well. So every combination on the slice stack can be deployed where EIP-170 applies, together with its libraries. On the sorted array, which is there to compare data structures, the freezing and classification extensions together with the acceptance check or with consolidation are over the limit. The margins are small: `PresetBothConsolTunedStack`, the same combination as `PresetBothConsolStack` with the deployment parameters of consolidation overridden, is 24,522 bytes, 54 below the limit, and another compiler version or setting can take a combination over it.
 
 EIP-7954 raises the limit to 65,536 bytes. It is scheduled for the Glamsterdam upgrade, which was not active on mainnet when this was written (November 2026). Every contract in the tables is below that limit.
 
