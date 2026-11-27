@@ -481,16 +481,16 @@ abstract contract DraftSequencesBase is Test, TokenTarget {
         // 6
         vm.prank(B);
         assertTrue(t.transferSlices(A, _one(45), _one(5)));
-        uint256[] memory alo = new uint256[](4);
-        uint256[] memory ahi = new uint256[](4);
-        (alo[0], alo[1], alo[2], alo[3]) = (10, 45, 60, 75);
-        (ahi[0], ahi[1], ahi[2], ahi[3]) = (40, 50, 70, 100);
-        _assertExactly(_holdMask(A, 100), alo, ahi, "step 6 A ranges");
-        uint256[] memory blo = new uint256[](4);
-        uint256[] memory bhi = new uint256[](4);
-        (blo[0], blo[1], blo[2], blo[3]) = (0, 40, 50, 70);
-        (bhi[0], bhi[1], bhi[2], bhi[3]) = (10, 45, 60, 75);
-        _assertExactly(_holdMask(B, 100), blo, bhi, "step 6 B ranges");
+        uint256[] memory losA = new uint256[](4);
+        uint256[] memory hisA = new uint256[](4);
+        (losA[0], losA[1], losA[2], losA[3]) = (10, 45, 60, 75);
+        (hisA[0], hisA[1], hisA[2], hisA[3]) = (40, 50, 70, 100);
+        _assertExactly(_holdMask(A, 100), losA, hisA, "step 6 A ranges");
+        uint256[] memory losB = new uint256[](4);
+        uint256[] memory hisB = new uint256[](4);
+        (losB[0], losB[1], losB[2], losB[3]) = (0, 40, 50, 70);
+        (hisB[0], hisB[1], hisB[2], hisB[3]) = (10, 45, 60, 75);
+        _assertExactly(_holdMask(B, 100), losB, hisB, "step 6 B ranges");
         assertEq(t.balanceOf(A), 70);
         assertEq(t.balanceOf(B), 30);
         vm.getRecordedLogs();

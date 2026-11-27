@@ -876,11 +876,11 @@ abstract contract ERCXXXX is SerialHoldings, IERC20Metadata, IERC20Errors, IERC1
         c.from = from;
         c.to = to;
         c.restricted = _hasRestrictions();
-        uint256 prevEnd;
+        uint256 previousEnd;
         for (uint256 k; k < count; ++k) {
             uint256 len = amounts[k];
-            if (len == 0 || (k != 0 && starts[k] < prevEnd)) revert ERCXXXXInvalidRanges();
-            prevEnd = _moveOneRange(c, starts[k], len);
+            if (len == 0 || (k != 0 && starts[k] < previousEnd)) revert ERCXXXXInvalidRanges();
+            previousEnd = _moveOneRange(c, starts[k], len);
             value += len;
         }
         if (from != to && to != address(0)) _flush(to, c.out);
@@ -961,15 +961,15 @@ abstract contract ERCXXXX is SerialHoldings, IERC20Metadata, IERC20Errors, IERC1
         uint256 issued = _issued;
         los = new uint256[](count);
         his = new uint256[](count);
-        uint256 prevEnd;
+        uint256 previousEnd;
         for (uint256 k; k < count; ++k) {
             uint256 a = starts[k];
             uint256 len = amounts[k];
-            if (len == 0 || (k != 0 && a < prevEnd)) revert ERCXXXXInvalidRanges();
+            if (len == 0 || (k != 0 && a < previousEnd)) revert ERCXXXXInvalidRanges();
             if (a >= issued || len > issued - a) revert ERCXXXXNotHeld(account, a, len);
-            if (k == 0 || a != prevEnd) ++groups;
-            prevEnd = a + len;
-            (los[k], his[k]) = (a, prevEnd);
+            if (k == 0 || a != previousEnd) ++groups;
+            previousEnd = a + len;
+            (los[k], his[k]) = (a, previousEnd);
             value += len;
         }
     }

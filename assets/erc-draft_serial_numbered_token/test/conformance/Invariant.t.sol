@@ -64,7 +64,7 @@ contract ConformanceHandler is Test {
     mapping(uint256 => bool) internal mConsolidated;
     mapping(uint256 => uint256) internal mSucc;
     mapping(uint256 => uint8) internal rBits; // reference model: call arguments along the records, not freeze events
-    bool internal inForced;
+    bool internal inForcedOperation;
     bool internal inConsol;
 
     // Coverage statistics
@@ -289,7 +289,7 @@ contract ConformanceHandler is Test {
     }
 
     function _onForced(Replay memory st, Vm.Log memory lg) internal view {
-        assertTrue(inForced, "SliceForciblyTransferred outside a forced operation");
+        assertTrue(inForcedOperation, "SliceForciblyTransferred outside a forced operation");
         assertTrue(st.seenTransfer, "SliceForciblyTransferred before any Transfer");
         assertEq(address(uint160(uint256(lg.topics[1]))), st.tFrom, "Forced.from");
         assertEq(address(uint160(uint256(lg.topics[2]))), st.tTo, "Forced.to");
@@ -332,7 +332,7 @@ contract ConformanceHandler is Test {
             } else {
                 assertEq(mHolder[s], from, "serial moved by a non-holder");
                 assertFalse(mDestroyed[s], "destroyed serial moved");
-                if (inForced) {
+                if (inForcedOperation) {
                     assertTrue(mBits[s] != 0, "forced operation on an unfrozen serial");
                 } else {
                     assertEq(mBits[s], 0, "frozen serial moved by a non-forced operation");
@@ -818,7 +818,7 @@ contract ConformanceHandler is Test {
         if (from == to) to = _actor(toSeed % actors.length + 1);
         (start, amount) = _forcedSpan(from, start, amount);
         bool want = _modelAll(start, start + amount, from, to, 1);
-        inForced = true;
+        inForcedOperation = true;
         try token.forcedTransferSlice(from, to, start, amount) {
             assertTrue(want, "forcedTransferSlice succeeded unexpectedly");
             ++okForced;
@@ -827,7 +827,7 @@ contract ConformanceHandler is Test {
             assertFalse(want, "forcedTransferSlice reverted unexpectedly");
             _discard();
         }
-        inForced = false;
+        inForcedOperation = false;
     }
 
     function destroy(uint256 fromSeed, uint256 start, uint256 amount) external {
@@ -835,7 +835,7 @@ contract ConformanceHandler is Test {
         address from = _actor(fromSeed);
         (start, amount) = _forcedSpan(from, start, amount);
         bool want = _modelAll(start, start + amount, from, address(0), 1);
-        inForced = true;
+        inForcedOperation = true;
         try token.destroySlice(from, start, amount) {
             assertTrue(want, "destroySlice succeeded unexpectedly");
             ++okForced;
@@ -844,7 +844,7 @@ contract ConformanceHandler is Test {
             assertFalse(want, "destroySlice reverted unexpectedly");
             _discard();
         }
-        inForced = false;
+        inForcedOperation = false;
     }
 
     /// @dev The hint for the hinted forced operations. Most of the time it is the position read with
@@ -876,7 +876,7 @@ contract ConformanceHandler is Test {
         (start, amount) = _forcedSpan(from, start, amount);
         (bool fits, bytes32 pile, uint256 index) = _hint(from, start, amount, hintSeed);
         bool want = fits && _modelAll(start, start + amount, from, to, 1);
-        inForced = true;
+        inForcedOperation = true;
         try token.forcedTransferSliceAt(from, to, start, amount, pile, index) {
             assertTrue(want, "forcedTransferSliceAt succeeded unexpectedly");
             ++okForced;
@@ -886,7 +886,7 @@ contract ConformanceHandler is Test {
             assertFalse(want, "forcedTransferSliceAt reverted unexpectedly");
             _discard();
         }
-        inForced = false;
+        inForcedOperation = false;
     }
 
     function destroyAt(uint256 fromSeed, uint256 start, uint256 amount, uint256 hintSeed) external {
@@ -895,7 +895,7 @@ contract ConformanceHandler is Test {
         (start, amount) = _forcedSpan(from, start, amount);
         (bool fits, bytes32 pile, uint256 index) = _hint(from, start, amount, hintSeed);
         bool want = fits && _modelAll(start, start + amount, from, address(0), 1);
-        inForced = true;
+        inForcedOperation = true;
         try token.destroySliceAt(from, start, amount, pile, index) {
             assertTrue(want, "destroySliceAt succeeded unexpectedly");
             ++okForced;
@@ -905,7 +905,7 @@ contract ConformanceHandler is Test {
             assertFalse(want, "destroySliceAt reverted unexpectedly");
             _discard();
         }
-        inForced = false;
+        inForcedOperation = false;
     }
 
     /// @dev Anyone tidies any pile of any account (the default pile, the frozen pile, the three class piles, or a

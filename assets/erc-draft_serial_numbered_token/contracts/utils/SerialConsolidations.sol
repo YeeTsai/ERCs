@@ -418,8 +418,8 @@ library SerialConsolidations {
         returns (uint256[] memory, uint256[] memory)
     {
         uint256 n = s.length;
-        uint256[] memory ts = new uint256[](n);
-        uint256[] memory te = new uint256[](n);
+        uint256[] memory tmpStarts = new uint256[](n);
+        uint256[] memory tmpEnds = new uint256[](n);
         for (uint256 width = 1; width < n; width *= 2) {
             for (uint256 lo; lo < n; lo += 2 * width) {
                 uint256 mid = lo + width < n ? lo + width : n;
@@ -427,16 +427,16 @@ library SerialConsolidations {
                 (uint256 i, uint256 j) = (lo, mid);
                 for (uint256 k = lo; k < hi; ++k) {
                     if (i < mid && (j >= hi || s[i] <= s[j])) {
-                        (ts[k], te[k]) = (s[i], e[i]);
+                        (tmpStarts[k], tmpEnds[k]) = (s[i], e[i]);
                         ++i;
                     } else {
-                        (ts[k], te[k]) = (s[j], e[j]);
+                        (tmpStarts[k], tmpEnds[k]) = (s[j], e[j]);
                         ++j;
                     }
                 }
             }
-            (s, ts) = (ts, s);
-            (e, te) = (te, e);
+            (s, tmpStarts) = (tmpStarts, s);
+            (e, tmpEnds) = (tmpEnds, e);
         }
         return (s, e);
     }

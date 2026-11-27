@@ -209,7 +209,7 @@ abstract contract HoldingsFuzzBase is Test {
         uint256 n = h.n();
         if (n > maxN) maxN = n;
         uint256 acc;
-        uint256 prevEnd;
+        uint256 previousEnd;
         for (uint256 i; i < n; ++i) {
             (uint256 s, uint256 l) = h.rangeAt(i);
             assertGt(l, 0, "empty range");
@@ -217,8 +217,8 @@ abstract contract HoldingsFuzzBase is Test {
             uint256 m = _mask(s, s + l);
             assertEq(acc & m, 0, "ranges overlap");
             acc |= m;
-            if (_sorted() && i != 0) assertLt(prevEnd, s, "sorted: not ascending or adjacent not merged");
-            prevEnd = s + l;
+            if (_sorted() && i != 0) assertLt(previousEnd, s, "sorted: not ascending or adjacent not merged");
+            previousEnd = s + l;
         }
         assertEq(acc, model, "holdings differ from model");
         for (uint256 i = n; i < maxN + 2; ++i) {

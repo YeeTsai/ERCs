@@ -139,16 +139,16 @@ function closedConsolidationErrorProblem(bytes memory err) pure returns (string 
 ///      below.
 abstract contract TokenTarget {
     /// @dev Deploys a token named "Serial" with the symbol "SRL", 6 decimals and admin as its admin, and states which
-    ///      extensions it is expected to support (freeze, class_) and whether it opens consolidation (consol).
+    ///      extensions it is expected to support (freeze, class_) and whether it opens consolidation (consolidate).
     ///      Consolidation belongs to the core interface and has no separate interface id, so the tests cannot tell
-    ///      by supportsInterface, and each target marks it explicitly here: a target with consol true inherits the
-    ///      consolidation module ERCXXXXConsolidation; in a target with consol false, consolidation is closed, and
+    ///      by supportsInterface, and each target marks it explicitly here: a target with consolidate true inherits the
+    ///      consolidation module ERCXXXXConsolidation; in a target with consolidate false, consolidation is closed, and
     ///      the tests assert the closed behavior (consolidateSlices always reverts, consolidatedSpanAt reports no
     ///      consolidated serial).
     function _deployToken(address admin)
         internal
         virtual
-        returns (ITestToken token, bool freeze, bool class_, bool consol);
+        returns (ITestToken token, bool freeze, bool class_, bool consolidate);
 }
 
 abstract contract TargetCoreStack is TokenTarget {

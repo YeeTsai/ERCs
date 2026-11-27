@@ -48,9 +48,9 @@ abstract contract ConsolidationBase is Test, TokenTarget {
     bytes32 internal constant N = "n";
 
     function setUp() public {
-        bool consol;
-        (t, hasFreeze, hasClass, consol) = _deployToken(admin);
-        assertTrue(consol, "these tests need a token that opens consolidation");
+        bool hasConsol;
+        (t, hasFreeze, hasClass, hasConsol) = _deployToken(admin);
+        assertTrue(hasConsol, "these tests need a token that opens consolidation");
         vm.startPrank(admin);
         if (hasFreeze) {
             t.setReasonInfo(R1, "Reason one", "");
