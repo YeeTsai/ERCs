@@ -11,7 +11,11 @@ import {SerialHoldings} from "./holdings/SerialHoldings.sol";
 ///         holdings are stored is decided by a backend contract (a contract that inherits SerialHoldings).
 ///         Consolidation is part of the core interface but is closed by default (clause 7 of "Consolidation" in the
 ///         draft): consolidateSlices always reverts, and consolidatedSpanAt reports no consolidated serials. A token
-///         that opens consolidation also inherits the module ERCXXXXConsolidation.
+///         that opens consolidation also inherits the module ERCXXXXConsolidation and links the library
+///         SerialConsolidations (which holds the consolidation records and the core's argument checks for
+///         consolidation); with the slice stack backend it also links the library SerialStackBatch (the scan that
+///         removes several slices by serial in one go for consolidation; see the end of SerialHoldingsStack). A
+///         token that does not open consolidation calls neither library and need not link them.
 ///         The token contract has to inherit both this contract and a backend, for example:
 ///
 ///             contract MyToken is ERCXXXX, SerialHoldingsStack { ... }
@@ -508,24 +512,27 @@ abstract contract ERCXXXX is SerialHoldings, IERC20Metadata, IERC20Errors, IERC1
     // Transfers by amount, transferSlices and forced operations call neither of them and do not read the
     // consolidation records.
 
-    /// @dev First step of consolidation: checks the form of starts / amounts by the rules of transferSlices and
-    ///      removes the named serials from the piles of account. Changes no balance and emits no events. The checks
-    ///      are made in the same order as in transferSlices: by i in ascending order, first the form
-    ///      (ERCXXXXInvalidRanges) and then whether the serials are issued; once all of these pass, the serials are
-    ///      removed in one go, and when some serial is not held by account (including one that is destroyed or
-    ///      consolidated), the call reverts with ERCXXXXNotHeld(account, starts[i], amounts[i]) for the first such
-    ///      slice.
-    ///      Returns the sum of the amounts, value, and the number of groups that are not adjacent to one another,
-    ///      groups (a slice that starts where the previous one ends joins the previous group).
-    ///      The removal uses the backend's _removeSerialsBatch, which scans each pile once rather than searching
-    ///      once for each slice.
-    function _detachSlices(address account, uint256[] calldata starts, uint256[] calldata amounts)
-        internal
-        returns (uint256 value, uint256 groups)
-    {
-        uint256[] memory los;
-        uint256[] memory his;
-        (los, his, value, groups) = _sliceBounds(account, starts, amounts);
+    /// @dev First step of consolidation: removes the named serials from the piles of account. Changes no balance and
+    ///      emits no events.
+    ///      Before the call, the consolidation module has already checked starts / amounts by the rules of
+    ///      transferSlices in the linked library SerialConsolidations (consolidation): by i in ascending order, first
+    ///      the form (ERCXXXXInvalidRanges) and then whether the serials are issued.
+    ///      los / his are the endpoints [los[i], his[i]) of the slices returned there, and value is the sum of the
+    ///      amounts.
+    ///      The serials are removed here in one go, and when some serial is not held by account (including one that is
+    ///      destroyed or consolidated), the call reverts with ERCXXXXNotHeld(account, starts[i], amounts[i]) for the
+    ///      first such slice.
+    ///      The removal uses the backend's _removeSerialsBatch, which scans each pile once rather than searching once
+    ///      for each slice; for the slice stack backend the scan is in the linked library SerialStackBatch, one
+    ///      DELEGATECALL for each pile that is not empty.
+    function _detachSlices(
+        address account,
+        uint256[] calldata starts,
+        uint256[] calldata amounts,
+        uint256[] memory los,
+        uint256[] memory his,
+        uint256 value
+    ) internal {
         uint256[] memory got = new uint256[](los.length);
         if (_removeBatchFromAll(account, los, his, got, value) != value) {
             for (uint256 k;; ++k) {
@@ -946,31 +953,6 @@ abstract contract ERCXXXX is SerialHoldings, IERC20Metadata, IERC20Errors, IERC1
         bytes32[] storage keys = _pileKeys[from];
         for (uint256 k = keys.length; k != 0 && removed < want; --k) {
             removed += _removeFromPile(from, keys[k - 1], a, b);
-        }
-    }
-
-    /// @dev The checking part of _detachSlices: the form, and whether the serials are issued. Returns
-    ///      [los[k], his[k]) for each slice, the sum of the amounts and the number of groups.
-    function _sliceBounds(address account, uint256[] calldata starts, uint256[] calldata amounts)
-        private
-        view
-        returns (uint256[] memory los, uint256[] memory his, uint256 value, uint256 groups)
-    {
-        uint256 count = starts.length;
-        if (count == 0 || count != amounts.length) revert ERCXXXXInvalidRanges();
-        uint256 issued = _issued;
-        los = new uint256[](count);
-        his = new uint256[](count);
-        uint256 previousEnd;
-        for (uint256 k; k < count; ++k) {
-            uint256 a = starts[k];
-            uint256 len = amounts[k];
-            if (len == 0 || (k != 0 && a < previousEnd)) revert ERCXXXXInvalidRanges();
-            if (a >= issued || len > issued - a) revert ERCXXXXNotHeld(account, a, len);
-            if (k == 0 || a != previousEnd) ++groups;
-            previousEnd = a + len;
-            (los[k], his[k]) = (a, previousEnd);
-            value += len;
         }
     }
 

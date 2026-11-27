@@ -44,6 +44,18 @@ import {SerialConsolidations} from "../utils/SerialConsolidations.sol";
 ///      longest one, which clause 10 of "Consolidation" in the draft allows.
 ///      Transfers by amount, transferSlices and forced operations do not read the consolidation records, and their
 ///      cost is not affected by this module.
+///
+///      SerialConsolidations is a library deployed separately and linked by the token, so its code does not count
+///      toward the token's size (EIP-170 limits it to 24,576 bytes):
+///      - _consolidate calls consolidation twice through _consolidationCall: first to check the form of the
+///        arguments and whether the serials are issued, then, once all checks have passed and the new serials have
+///        been issued, to write the records and emit SliceConsolidated. The two calls share one piece of calling
+///        code;
+///      - consolidatedSpanAt calls spanAt, and during freeze propagation _successorPieces calls successorsOf, one
+///        DELEGATECALL each.
+///      So a consolidation makes two DELEGATECALLs to this library; with the slice stack backend, removing the
+///      named serials from each pile that has to be scanned takes one more each (the library SerialStackBatch; see
+///      the end of SerialHoldingsStack).
 abstract contract ERCXXXXConsolidation is ERCXXXX {
     using SerialConsolidations for SerialConsolidations.Records;
 
@@ -109,13 +121,29 @@ abstract contract ERCXXXXConsolidation is ERCXXXX {
             uint256 c = sliceCount(account);
             if (c <= threshold) revert ERCXXXXConsolidationNotFragmented(account, c, threshold);
         }
-        (uint256 value, uint256 groups) = _detachSlices(account, starts, amounts);
+        (uint256[] memory los, uint256[] memory his, uint256 value, uint256 groups) =
+            _consolidationCall(account, starts, amounts, serialsIssued(), false);
+        _detachSlices(account, starts, amounts, los, his, value);
         uint256 minSlices = _minConsolidationSlices();
         if (groups < minSlices) revert ERCXXXXConsolidationTooFewSlices(groups, minSlices);
         bytes32 pile = _consolidationPile(account, starts, amounts);
         newStart = _issueConsolidated(account, value, pile);
-        _record(account, starts, amounts, newStart);
+        _consolidationCall(account, starts, amounts, newStart, true);
         _afterConsolidation(newStart, value, pile);
+    }
+
+    /// @dev The call to the linked library function SerialConsolidations.consolidation (one DELEGATECALL): with write
+    ///      false it checks the arguments and returns the endpoints of the slices, the sum of the amounts and the
+    ///      number of groups; with write true it writes the records and emits SliceConsolidated.
+    ///      Both calls in _consolidate go through here, so the token has only one copy of the calling code.
+    function _consolidationCall(
+        address account,
+        uint256[] calldata starts,
+        uint256[] calldata amounts,
+        uint256 issued,
+        bool write
+    ) private returns (uint256[] memory, uint256[] memory, uint256, uint256) {
+        return _consolidations.consolidation(account, starts, amounts, issued, write);
     }
 
     /// @dev The pile where the named serials belong; it has to be the same for all of them and must not be the
@@ -141,36 +169,6 @@ abstract contract ERCXXXXConsolidation is ERCXXXX {
                 x = hi;
             }
         }
-    }
-
-    /// @dev Emits SliceConsolidated (one for each i, in the order of i) and writes the consolidation records
-    ///      (adjacent slices become one record).
-    function _record(address account, uint256[] calldata starts, uint256[] calldata amounts, uint256 newStart)
-        private
-    {
-        uint256 p = newStart;
-        uint256 gOld;
-        uint256 gNew;
-        uint256 gLen;
-        // Old start of the record added last: the groups are added in ascending order, and the search for the
-        // next one starts at the level where the two diverge.
-        uint256 prev = SerialConsolidations.NONE;
-        for (uint256 k; k < starts.length; ++k) {
-            uint256 a = starts[k];
-            uint256 len = amounts[k];
-            emit SliceConsolidated(account, a, p, len);
-            if (gLen != 0 && a == gOld + gLen) {
-                gLen += len;
-            } else {
-                if (gLen != 0) {
-                    _consolidations.add(gOld, gNew, gLen, prev);
-                    prev = gOld;
-                }
-                (gOld, gNew, gLen) = (a, p, len);
-            }
-            p += len;
-        }
-        _consolidations.add(gOld, gNew, gLen, prev);
     }
 
     // ───────────────────────── Hooks of the core ─────────────────────────

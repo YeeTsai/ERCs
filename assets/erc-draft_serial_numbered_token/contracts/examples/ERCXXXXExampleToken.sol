@@ -21,11 +21,10 @@ import {SerialHoldingsStack} from "../holdings/SerialHoldingsStack.sol";
 ///         This is an example for reading. It is not audited, and its single admin is not a recommendation
 ///         of a permission model.
 ///
-///         As a single contract its runtime code is 39,333 bytes (solc 0.8.36, optimizer on, 200 runs),
-///         above the 24,576-byte limit of EIP-170, so it cannot be deployed on Ethereum mainnet as it stands.
+///         Its runtime code is within the 24,576-byte limit of EIP-170 (solc 0.8.36, optimizer on, 200 runs)
+///         once the libraries it uses are deployed and linked; the sizes are listed in the package README.
 ///         It is included so that a reader has one concrete token showing how the modules are combined and
-///         which overrides the combination needs. The combinations that do fit are listed in the package
-///         README.
+///         which overrides the combination needs.
 contract ERCXXXXExampleToken is
     ERCXXXXFreezable,
     ERCXXXXAllowlist,

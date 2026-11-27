@@ -1,11 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {IERCXXXX} from "../spec/IERCXXXX.sol";
+import {ERCXXXX} from "../ERCXXXX.sol";
+
 /// @title SerialConsolidations
 /// @notice Storage of consolidation records: each record states that the units of a slice of old serials
 ///         [oldStart, oldStart + length) received the new serials starting at successor. The old serials of the
 ///         records are pairwise disjoint (a serial is consolidated at most once). Used by the consolidation module
 ///         ERCXXXXConsolidation.
+///         The three public functions consolidation, spanAt and successorsOf are external: this library is
+///         deployed separately and linked by the token, which calls them with DELEGATECALL, so they read and write
+///         the token's own storage (the storage reference to Records). The library has no state, and all tokens
+///         can share one deployment.
+///         Callers: consolidation is called twice by ERCXXXXConsolidation._consolidate through
+///         _consolidationCall (first to check the arguments, then, once all checks have passed, to write the
+///         records); spanAt is called by consolidatedSpanAt; successorsOf is called by _successorPieces (freeze
+///         propagation).
+///         Each call costs one more DELEGATECALL (to a cold address) and the encoding of the arguments; transfers
+///         by amount, transferSlices and forced operations do not call it.
 /// @dev Storage (implementation detail):
 ///      - runs: old start -> (successor start << 128) | length, one slot per record. Serials do not exceed
 ///        2^128 - 1 (the same width as in the core).
@@ -65,7 +78,90 @@ library SerialConsolidations {
     ///      from driving up the gas of on-chain callers: one query reads at most 1 + 32 records.
     uint256 internal constant MAX_SPAN_EXTENSION = 32;
 
+    // ───────────────────────── Checking the arguments, recording ─────────────────────────
+
+    /// @dev The two calls in the consolidation module's _consolidate share this one entry point, so the token has
+    ///      only one copy of the calling code (ERCXXXXConsolidation._consolidationCall):
+    ///      - write false: checks the arguments (_bounds); issued is the number of serials issued (the core's
+    ///        serialsIssued()). Returns [los[k], his[k]) for each slice, the sum of the amounts and the number of
+    ///        groups, which the token then uses to remove these serials from the holding (the core's _detachSlices).
+    ///      - write true: once all checks have passed and the new serials have been issued, writes the records and
+    ///        emits SliceConsolidated (_record); issued is the first new serial. The return values are all empty.
+    function consolidation(
+        Records storage r,
+        address account,
+        uint256[] calldata starts,
+        uint256[] calldata amounts,
+        uint256 issued,
+        bool write
+    ) external returns (uint256[] memory los, uint256[] memory his, uint256 value, uint256 groups) {
+        if (write) _record(r, account, starts, amounts, issued);
+        else (los, his, value, groups) = _bounds(account, starts, amounts, issued);
+    }
+
+    /// @dev The checking part: the form, and whether the serials are issued (by the same rules as transferSlices);
+    ///      issued is the number of serials issued. Returns [los[k], his[k]) for each slice, the sum of the amounts
+    ///      and the number of groups.
+    function _bounds(address account, uint256[] calldata starts, uint256[] calldata amounts, uint256 issued)
+        private
+        pure
+        returns (uint256[] memory los, uint256[] memory his, uint256 value, uint256 groups)
+    {
+        uint256 count = starts.length;
+        if (count == 0 || count != amounts.length) revert ERCXXXX.ERCXXXXInvalidRanges();
+        los = new uint256[](count);
+        his = new uint256[](count);
+        uint256 previousEnd;
+        for (uint256 k; k < count; ++k) {
+            uint256 a = starts[k];
+            uint256 len = amounts[k];
+            if (len == 0 || (k != 0 && a < previousEnd)) revert ERCXXXX.ERCXXXXInvalidRanges();
+            if (a >= issued || len > issued - a) revert IERCXXXX.ERCXXXXNotHeld(account, a, len);
+            if (k == 0 || a != previousEnd) ++groups;
+            previousEnd = a + len;
+            (los[k], his[k]) = (a, previousEnd);
+            value += len;
+        }
+    }
+
     // ───────────────────────── Records ─────────────────────────
+
+    /// @dev Records one consolidation: the slices (starts[i], amounts[i]) of account move, in order, to the new
+    ///      serials starting at newStart. Emits SliceConsolidated (one for each i, in the order of i) and writes the
+    ///      consolidation records (adjacent slices become one record).
+    ///      The caller has already checked that the slices are in ascending order, do not overlap and are held by
+    ///      account.
+    function _record(
+        Records storage r,
+        address account,
+        uint256[] calldata starts,
+        uint256[] calldata amounts,
+        uint256 newStart
+    ) private {
+        uint256 p = newStart;
+        uint256 gOld;
+        uint256 gNew;
+        uint256 gLen;
+        // Old start of the record added last: the groups are added in ascending order, and the search for the
+        // next one starts at the level where the two diverge.
+        uint256 prev = NONE;
+        for (uint256 k; k < starts.length; ++k) {
+            uint256 a = starts[k];
+            uint256 len = amounts[k];
+            emit IERCXXXX.SliceConsolidated(account, a, p, len);
+            if (gLen != 0 && a == gOld + gLen) {
+                gLen += len;
+            } else {
+                if (gLen != 0) {
+                    add(r, gOld, gNew, gLen, prev);
+                    prev = gOld;
+                }
+                (gOld, gNew, gLen) = (a, p, len);
+            }
+            p += len;
+        }
+        add(r, gOld, gNew, gLen, prev);
+    }
 
     /// @dev Adds a record. The caller ensures that [oldStart, oldStart + len) does not intersect the old serials of
     ///      existing records, and that len > 0.
@@ -269,7 +365,7 @@ library SerialConsolidations {
     ///      Cost: when consolidated, at most 1 + MAX_SPAN_EXTENSION records are read, plus one floor lookup; when not
     ///      consolidated, one floor lookup and one ceiling lookup.
     function spanAt(Records storage r, uint256 serial, uint256 issued)
-        internal
+        external
         view
         returns (bool consolidated, uint256 successor, uint256 length)
     {
@@ -303,7 +399,7 @@ library SerialConsolidations {
     ///      O(r log r). Successors that follow one another are merged when queued, so the successors of the records
     ///      of one consolidation are queried again only as one slice.
     function successorsOf(Records storage r, uint256 start, uint256 end)
-        internal
+        external
         view
         returns (uint256[] memory starts, uint256[] memory ends)
     {

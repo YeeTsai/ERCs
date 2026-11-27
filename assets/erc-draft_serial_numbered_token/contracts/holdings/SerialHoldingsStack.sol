@@ -25,6 +25,11 @@ import {SerialHoldingsArray} from "./SerialHoldingsArray.sol";
 ///      then pops the top of the stack; when only part of it is taken, the lower remainder stays in place.
 ///      So taking units shuffles the order only inside the window, and the slices below the window stay in the
 ///      order in which they were received.
+///
+///      For consolidation, the scan that removes several slices by serial in one go (_removeSerialsBatch) is in
+///      the library SerialStackBatch at the end of this file, which is deployed separately and linked by the
+///      token, so its code does not count toward the token's size; transfers by amount, transferSlices and forced
+///      operations do not call it.
 abstract contract SerialHoldingsStack is SerialHoldingsArray {
     /// @dev The window size W of the second rule; 0 means the default rule.
     uint256 private immutable _window;
@@ -123,6 +128,10 @@ abstract contract SerialHoldingsStack is SerialHoldingsArray {
 
     /// @dev Scans once from the top of the stack downward; for each slice, finds by binary search the given slices
     ///      that intersect it; stops once want serials have been removed.
+    ///      The scan is in the linked library SerialStackBatch (at the end of this file), one DELEGATECALL; the
+    ///      library reads and writes the storage of this pile directly.
+    ///      Memory in the library does not come back to the caller, so the library returns got, and it is copied
+    ///      back into the caller's array.
     function _removeSerialsBatch(
         address account,
         bytes32 pile,
@@ -132,20 +141,53 @@ abstract contract SerialHoldingsStack is SerialHoldingsArray {
         uint256[] memory got,
         uint256 want
     ) internal virtual override returns (uint256 newN, uint256 total) {
+        uint256[] memory g;
+        (newN, total, g) = SerialStackBatch.removeBatch(_pileSlots(account, pile), n, los, his, got, want);
+        for (uint256 k; k < g.length; ++k) {
+            got[k] = g[k];
+        }
+    }
+}
+
+/// @title SerialStackBatch: removing several slices by serial in one go for the slice stack backend (a library
+///        deployed separately and linked by the token)
+/// @notice Only consolidation uses it: ERCXXXX._detachSlices -> _removeBatchFromAll -> _removeFromPileBatch
+///         -> SerialHoldingsStack._removeSerialsBatch -> removeBatch, one DELEGATECALL for each pile that is not
+///         empty.
+///         The function is external, so its code does not count toward the token's size (EIP-170 limits it to
+///         24,576 bytes); it reads and writes the token's own storage (the storage reference among the parameters,
+///         that is, the "index -> slice" mapping of this pile in SerialHoldingsArray).
+/// @dev The rule for removing from a slice is the same as in SerialHoldingsStack._removeAt, of which this is a
+///      copy: transfers use the copy in the contract and do not call the library.
+///      The storage format is the same as in SerialHoldingsArray: one slot per slice, with the start in the high
+///      128 bits and the length in the low 128 bits.
+library SerialStackBatch {
+    /// @notice Removes from the pile slots, which has n slices, the serials that fall within the slices
+    ///         [los[j], his[j]); the number removed for slice j is added to got[j], and it stops once want serials
+    ///         have been removed. Returns the new number of slices, the total removed by this call and the updated
+    ///         got. For the requirements on the slices, see SerialHoldings._removeSerialsBatch.
+    function removeBatch(
+        mapping(uint256 => uint256) storage slots,
+        uint256 n,
+        uint256[] memory los,
+        uint256[] memory his,
+        uint256[] memory got,
+        uint256 want
+    ) external returns (uint256 newN, uint256 total, uint256[] memory) {
         newN = n;
         for (uint256 idx = n; idx != 0 && total < want; --idx) {
             uint256 removed;
-            (newN, removed) = _cutRange(account, pile, newN, idx - 1, los, his, got);
+            (newN, removed) = _cutRange(slots, newN, idx - 1, los, his, got);
             total += removed;
         }
+        return (newN, total, got);
     }
 
     /// @dev Removes from the slice at index i the parts that intersect the given slices. Takes from high to low:
     ///      _removeAt leaves the lower remainder at index i and appends the upper remainder at the end (a position
     ///      already visited).
     function _cutRange(
-        address account,
-        bytes32 pile,
+        mapping(uint256 => uint256) storage slots,
         uint256 n,
         uint256 i,
         uint256[] memory los,
@@ -153,19 +195,46 @@ abstract contract SerialHoldingsStack is SerialHoldingsArray {
         uint256[] memory got
     ) private returns (uint256 newN, uint256 removed) {
         newN = n;
-        (uint256 s, uint256 len) = _rangeAt(account, pile, i);
-        uint256 e = s + len;
+        uint256 v = slots[i];
+        uint256 s = v >> 128;
+        uint256 e = s + (v & type(uint128).max);
         for (uint256 j = _countStartsBelow(los, e); j != 0; --j) {
             if (his[j - 1] <= s) break;
             uint256 ps = los[j - 1] > s ? los[j - 1] : s;
             uint256 pe = his[j - 1] < e ? his[j - 1] : e;
-            newN = _removeAt(account, pile, newN, i, ps, pe);
+            newN = _removeAt(slots, newN, i, ps, pe);
             got[j - 1] += pe - ps;
             removed += pe - ps;
             // The start of this slice has been reached: lower given slices cannot intersect it (when the whole
             // slice was taken, index i now holds a different slice).
             if (ps == s) break;
         }
+    }
+
+    /// @dev A copy of SerialHoldingsStack._removeAt: the lower remainder stays in place and the upper remainder is
+    ///      appended at the end; when nothing remains on either side, the last slice is moved into this position.
+    function _removeAt(mapping(uint256 => uint256) storage slots, uint256 n, uint256 i, uint256 lo, uint256 hi)
+        private
+        returns (uint256)
+    {
+        uint256 v = slots[i];
+        uint256 s = v >> 128;
+        uint256 e = s + (v & type(uint128).max);
+        if (s < lo) {
+            slots[i] = (s << 128) | (lo - s);
+            if (hi < e) {
+                slots[n] = (hi << 128) | (e - hi);
+                return n + 1;
+            }
+            return n;
+        }
+        if (hi < e) {
+            slots[i] = (hi << 128) | (e - hi);
+            return n;
+        }
+        if (i != n - 1) slots[i] = slots[n - 1];
+        delete slots[n - 1];
+        return n - 1;
     }
 
     /// @dev The number of given slices whose start is less than x (los is in ascending order).

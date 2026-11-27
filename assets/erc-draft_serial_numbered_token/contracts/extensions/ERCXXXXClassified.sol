@@ -32,6 +32,20 @@ import {SerialBounds} from "../utils/SerialBounds.sol";
 ///
 ///      Known limitation: every _setClass rewrites the whole step function, at a cost that grows linearly with its
 ///      number of breakpoints.
+///
+///      Rewriting the step function, the SliceClassified events, writing the class descriptions and the counting
+///      for classesOf are in the library SerialClassOps at the end of this file, which is deployed separately and
+///      linked by the token, so its code does not count toward the token's size; each of these operations costs
+///      one more DELEGATECALL. The code that looks up classes during transfers stays in this contract and does not
+///      call the library.
+///      classesOf and classInfo only call the library functions whose names end in Raw: the library ABI-encodes
+///      the result according to the return types these functions declare and returns it itself with RETURN; the
+///      token then uses inline assembly to return this return data unchanged as its own (RETURNDATACOPY, RETURN),
+///      without decoding and re-encoding it, so the encoding code does not count toward the token's size either.
+///      This is written as inline assembly rather than as a shared internal function because the compiler cannot
+///      tell that the internal function does not return, and would keep return-value encoding that is never used.
+///      RETURN ends the whole call, so these two functions are external (they cannot be called from inside the
+///      contract), and a child contract that overrides them cannot call super either.
 abstract contract ERCXXXXClassified is ERCXXXX, IERCXXXXClassified {
     /// @dev A breakpoint of the class step function; it takes two storage slots.
     struct ClassPoint {
@@ -71,50 +85,28 @@ abstract contract ERCXXXXClassified is ERCXXXX, IERCXXXXClassified {
         return _classAllows(classId, from, to);
     }
 
-    function classesOf(address account)
-        public
-        view
-        virtual
-        returns (bytes32[] memory classIds, uint256[] memory amounts)
-    {
-        // There are at most as many distinct classes as breakpoints of the step function, plus 1 (the default
-        // class).
-        uint256 cap = _classPoints.length + 1;
-        classIds = new bytes32[](cap);
-        amounts = new uint256[](cap);
-        uint256 k;
+    /// @dev The counting and the encoding of the return value are in the linked library SerialClassOps
+    ///      (classesInRaw); the token returns the library's return data unchanged (see the notes at the top of this
+    ///      contract).
+    function classesOf(address account) external view virtual returns (bytes32[] memory, uint256[] memory) {
         (uint256[] memory starts, uint256[] memory lens) = _heldRanges(account);
-        for (uint256 i; i < starts.length; ++i) {
-            uint256 x = starts[i];
-            uint256 e = x + lens[i];
-            while (x < e) {
-                (, uint256 segEnd, bytes32 c) = _classSeg(x);
-                uint256 hi = segEnd < e ? segEnd : e;
-                uint256 j;
-                while (j < k && classIds[j] != c) {
-                    ++j;
-                }
-                if (j == k) {
-                    classIds[k] = c;
-                    ++k;
-                }
-                amounts[j] += hi - x;
-                x = hi;
-            }
-        }
-        // Shrinks the array lengths in place (k is not greater than the original length); this writes only memory
-        // that the arrays have already allocated, so it is marked memory-safe.
-        // via-IR can move variables that do not fit on the stack into memory only if all inline assembly in the
-        // contract is memory-safe; otherwise a contract that also has the freezing extension fails to compile.
+        SerialClassOps.classesInRaw(_classPoints, starts, lens);
         assembly ("memory-safe") {
-            mstore(classIds, k)
-            mstore(amounts, k)
+            let p := mload(0x40)
+            returndatacopy(p, 0, returndatasize())
+            return(p, returndatasize())
         }
     }
 
-    function classInfo(bytes32 classId) public view virtual returns (string memory name_, string memory uri) {
-        ClassInfo storage d = _classInfo[classId];
-        return (d.name, d.uri);
+    /// @dev The reading and the encoding are in the linked library SerialClassOps (classInfoRaw); the token returns
+    ///      the library's return data unchanged (see the notes at the top of this contract).
+    function classInfo(bytes32 classId) external view virtual returns (string memory, string memory) {
+        SerialClassOps.classInfoRaw(_classInfo, classId);
+        assembly ("memory-safe") {
+            let p := mload(0x40)
+            returndatacopy(p, 0, returndatasize())
+            return(p, returndatasize())
+        }
     }
 
     // ───────────────────────── Hook for flow rules ─────────────────────────
@@ -133,12 +125,13 @@ abstract contract ERCXXXXClassified is ERCXXXX, IERCXXXXClassified {
 
     // ───────────────────────── Internal operations ─────────────────────────
 
-    /// @dev Defines or modifies the description of a non-zero class.
+    /// @dev Defines or modifies the description of a non-zero class. The write is in the linked library
+    ///      SerialClassOps.
     function _defineClass(bytes32 classId, string memory name_, string memory uri) internal virtual {
         if (classId == bytes32(0) || classId == _FROZEN_PILE || bytes(name_).length == 0) {
             revert ERCXXXXInvalidClass(classId);
         }
-        _classInfo[classId] = ClassInfo(true, name_, uri);
+        SerialClassOps.setClassInfo(_classInfo, classId, name_, uri);
     }
 
     function _isClassDefined(bytes32 classId) internal view returns (bool) {
@@ -147,34 +140,12 @@ abstract contract ERCXXXXClassified is ERCXXXX, IERCXXXXClassified {
 
     /// @dev Sets the class of [start, start + amount) to classId (zero means the default class). Rebuilds the whole
     ///      step function.
+    ///      The checks stay here; the rebuild and SliceClassified are in the linked library SerialClassOps (see the
+    ///      end of this file).
     function _setClass(uint256 start, uint256 amount, bytes32 classId) internal virtual {
         uint256 end = _checkedRange(start, amount);
         if (classId != bytes32(0) && !_classInfo[classId].defined) revert ERCXXXXInvalidClass(classId);
-        uint256 n = _classPoints.length;
-        SerialSteps.Steps memory old = SerialSteps.newSteps(n);
-        for (uint256 i; i < n; ++i) {
-            ClassPoint memory p = _classPoints[i];
-            SerialSteps.push(old, p.pos, uint256(p.classId));
-        }
-        SerialSteps.Steps memory st =
-            SerialSteps.rebuild(old, SerialSteps.onePiece(start, end), SerialSteps.SET, uint256(classId));
-        for (uint256 i; i < st.n; ++i) {
-            ClassPoint memory p = ClassPoint(uint128(st.pos[i]), bytes32(st.val[i]));
-            if (i < n) {
-                ClassPoint memory cur = _classPoints[i];
-                if (cur.pos != p.pos || cur.classId != p.classId) _classPoints[i] = p;
-            } else {
-                _classPoints.push(p);
-            }
-        }
-        for (; n > st.n; --n) {
-            _classPoints.pop();
-        }
-        // Canonical form: the class of the first breakpoint is not 0 and the class of the last breakpoint is 0,
-        // so the serials of non-default classes lie exactly between these two breakpoints.
-        if (st.n == 0) SerialBounds.setPart(SerialBounds.CLASS, 0, 0, 0);
-        else SerialBounds.setPart(SerialBounds.CLASS, st.pos[0], st.pos[st.n - 1], st.n);
-        emit SliceClassified(start, amount, classId);
+        SerialClassOps.setClass(_classPoints, start, end, classId);
     }
 
     /// @dev Issues value units of the class classId to the address to and returns the first serial. The cost is
@@ -183,11 +154,8 @@ abstract contract ERCXXXXClassified is ERCXXXX, IERCXXXXClassified {
         if (classId != bytes32(0) && !_classInfo[classId].defined) revert ERCXXXXInvalidClass(classId);
         // Put the units directly into the pile of this class (the pile of class 0 is the default pile).
         start = _issue(to, value, classId);
-        if (value != 0 && classId != bytes32(0)) {
-            _appendClass(start, start + value, classId);
-            // The draft requires this event to come after the Transfer of the issuance.
-            emit SliceClassified(start, value, classId);
-        }
+        // Emits SliceClassified; the draft requires it to come after the Transfer of the issuance.
+        if (value != 0 && classId != bytes32(0)) _appendClass(start, start + value, classId);
     }
 
     // ───────────────────────── Hooks of the core ─────────────────────────
@@ -230,34 +198,15 @@ abstract contract ERCXXXXClassified is ERCXXXX, IERCXXXXClassified {
     ///      SliceClassified is emitted after all the SliceConsolidated events.
     function _afterConsolidation(uint256 newStart, uint256 amount, bytes32 pile) internal virtual override {
         super._afterConsolidation(newStart, amount, pile);
-        if (pile != _DEFAULT_PILE && pile != _FROZEN_PILE) {
-            _appendClass(newStart, newStart + amount, pile);
-            emit SliceClassified(newStart, amount, pile);
-        }
+        if (pile != _DEFAULT_PILE && pile != _FROZEN_PILE) _appendClass(newStart, newStart + amount, pile);
     }
 
     // ───────────────────────── Private ─────────────────────────
 
-    /// @dev Newly issued serials always come after the existing serials, so only the end needs to change; the
-    ///      bounding slice becomes [first breakpoint, end).
+    /// @dev Newly issued serials always come after the existing serials, so only the end needs to change. The
+    ///      change and SliceClassified are in the linked library SerialClassOps.
     function _appendClass(uint256 start, uint256 end, bytes32 classId) private {
-        uint256 n = _classPoints.length;
-        uint256 first = n == 0 ? start : _classPoints[0].pos;
-        if (n != 0 && _classPoints[n - 1].pos == start) {
-            // The last breakpoint is (start, 0).
-            if (n >= 2 && _classPoints[n - 2].classId == classId) {
-                _classPoints[n - 1].pos = uint128(end);
-            } else {
-                _classPoints[n - 1].classId = classId;
-                _classPoints.push(ClassPoint(uint128(end), bytes32(0)));
-                ++n;
-            }
-        } else {
-            _classPoints.push(ClassPoint(uint128(start), classId));
-            _classPoints.push(ClassPoint(uint128(end), bytes32(0)));
-            n += 2;
-        }
-        SerialBounds.setPart(SerialBounds.CLASS, first, end, n);
+        SerialClassOps.append(_classPoints, start, end, classId);
     }
 
     /// @dev The class of the first breakpoint. The caller guarantees that the step function is not empty; the slot
@@ -283,5 +232,193 @@ abstract contract ERCXXXXClassified is ERCXXXX, IERCXXXXClassified {
         if (lo == 0) return (0, n == 0 ? type(uint256).max : _classPoints[0].pos, bytes32(0));
         ClassPoint memory p = _classPoints[lo - 1];
         return (p.pos, lo < n ? _classPoints[lo].pos : type(uint256).max, p.classId);
+    }
+}
+
+/// @title SerialClassOps: storage rewrites and heavy queries of the classification extension (a library deployed
+///        separately and linked by the token)
+/// @notice Rewrites the class storage when a class is set, when units are issued with a class, when units of a class
+///         are consolidated and when a class is defined, and does the counting for classesOf and the reading for
+///         classInfo.
+///         The functions are external: the token calls them with DELEGATECALL, so they read and write the token's
+///         own storage (the storage references among the parameters), and the events are emitted from the token's
+///         address too. The library has no state and does not call the token's functions, so one deployment can be
+///         shared by all tokens. The transfer path does not call it.
+///         Callers: setClass <- ERCXXXXClassified._setClass; append <- _appendClass (_mintWithClass,
+///         _afterConsolidation); setClassInfo <- _defineClass; classesInRaw <- classesOf; classInfoRaw <- classInfo.
+/// @dev The code is moved out of the token so that a token with the classification extension stays below the
+///      runtime code limit of EIP-170 (24,576 bytes). The price is one more DELEGATECALL for each of these
+///      operations (to a cold address) and the encoding of the arguments. The checks and the authorization stay in
+///      ERCXXXXClassified.
+///      The functions take the token's state variables as storage reference parameters, and SliceClassified is
+///      emitted here.
+///      The bounding slice shared with the freezing extension (SerialBounds) is updated after the step function is
+///      rewritten: it is at a fixed storage slot, and the library writes it directly, in the token's storage.
+library SerialClassOps {
+    /// @dev Sets the class of [start, end) to classId, rebuilds the step function points, then emits
+    ///      SliceClassified.
+    function setClass(ERCXXXXClassified.ClassPoint[] storage points, uint256 start, uint256 end, bytes32 classId)
+        external
+    {
+        uint256 n = points.length;
+        SerialSteps.Steps memory old = SerialSteps.newSteps(n);
+        for (uint256 i; i < n; ++i) {
+            ERCXXXXClassified.ClassPoint memory p = points[i];
+            SerialSteps.push(old, p.pos, uint256(p.classId));
+        }
+        SerialSteps.Steps memory st =
+            SerialSteps.rebuild(old, SerialSteps.onePiece(start, end), SerialSteps.SET, uint256(classId));
+        for (uint256 i; i < st.n; ++i) {
+            ERCXXXXClassified.ClassPoint memory p =
+                ERCXXXXClassified.ClassPoint(uint128(st.pos[i]), bytes32(st.val[i]));
+            if (i < n) {
+                ERCXXXXClassified.ClassPoint memory cur = points[i];
+                if (cur.pos != p.pos || cur.classId != p.classId) points[i] = p;
+            } else {
+                points.push(p);
+            }
+        }
+        for (; n > st.n; --n) {
+            points.pop();
+        }
+        // Canonical form: the class of the first breakpoint is not 0 and the class of the last breakpoint is 0,
+        // so the serials of non-default classes lie exactly between these two breakpoints.
+        // The slot of SerialBounds is fixed, so through DELEGATECALL the write goes to the token's own storage.
+        if (st.n == 0) SerialBounds.setPart(SerialBounds.CLASS, 0, 0, 0);
+        else SerialBounds.setPart(SerialBounds.CLASS, st.pos[0], st.pos[st.n - 1], st.n);
+        emit IERCXXXXClassified.SliceClassified(start, end - start, classId);
+    }
+
+    /// @dev Writes the description of the class classId, marking it as defined.
+    function setClassInfo(
+        mapping(bytes32 => ERCXXXXClassified.ClassInfo) storage infos,
+        bytes32 classId,
+        string memory name_,
+        string memory uri
+    ) external {
+        infos[classId] = ERCXXXXClassified.ClassInfo(true, name_, uri);
+    }
+
+    /// @dev Sets the class of the newly issued [start, end) to classId (not zero), changing only the end of the step
+    ///      function, at a constant cost. Then emits SliceClassified.
+    function append(ERCXXXXClassified.ClassPoint[] storage points, uint256 start, uint256 end, bytes32 classId)
+        external
+    {
+        _append(points, start, end, classId);
+        emit IERCXXXXClassified.SliceClassified(start, end - start, classId);
+    }
+
+    /// @dev Newly issued serials always come after the existing serials, so only the end needs to change; the
+    ///      bounding slice becomes [first breakpoint, end).
+    function _append(ERCXXXXClassified.ClassPoint[] storage points, uint256 start, uint256 end, bytes32 classId)
+        private
+    {
+        uint256 n = points.length;
+        uint256 first = n == 0 ? start : points[0].pos;
+        if (n != 0 && points[n - 1].pos == start) {
+            // The last breakpoint is (start, 0).
+            if (n >= 2 && points[n - 2].classId == classId) {
+                points[n - 1].pos = uint128(end);
+            } else {
+                points[n - 1].classId = classId;
+                points.push(ERCXXXXClassified.ClassPoint(uint128(end), bytes32(0)));
+                ++n;
+            }
+        } else {
+            points.push(ERCXXXXClassified.ClassPoint(uint128(start), classId));
+            points.push(ERCXXXXClassified.ClassPoint(uint128(end), bytes32(0)));
+            n += 2;
+        }
+        SerialBounds.setPart(SerialBounds.CLASS, first, end, n);
+    }
+
+    // The functions whose names end in Raw declare no return values: they encode the result according to the return
+    // types of the token's query function and return it directly with RETURN, and the token passes it on unchanged
+    // (see the notes at the top of ERCXXXXClassified), without decoding and re-encoding it.
+
+    /// @dev The return data of classesOf(account), (bytes32[] classIds, uint256[] amounts); see classesIn.
+    function classesInRaw(
+        ERCXXXXClassified.ClassPoint[] storage points,
+        uint256[] memory starts,
+        uint256[] memory lens
+    ) external view {
+        (bytes32[] memory classIds, uint256[] memory amounts) = classesIn(points, starts, lens);
+        _rawReturn(abi.encode(classIds, amounts));
+    }
+
+    /// @dev The return data of classInfo(classId), (string name, string uri).
+    function classInfoRaw(mapping(bytes32 => ERCXXXXClassified.ClassInfo) storage infos, bytes32 classId)
+        external
+        view
+    {
+        ERCXXXXClassified.ClassInfo storage d = infos[classId];
+        _rawReturn(abi.encode(d.name, d.uri));
+    }
+
+    /// @dev Ends execution with data as the return data.
+    function _rawReturn(bytes memory data) private pure {
+        assembly ("memory-safe") {
+            return(add(data, 0x20), mload(data))
+        }
+    }
+
+    /// @dev The counting for classesOf: the number of units of each class in the holding (starts[i], lens[i]),
+    ///      listed in the order in which the classes are first met.
+    function classesIn(ERCXXXXClassified.ClassPoint[] storage points, uint256[] memory starts, uint256[] memory lens)
+        private
+        view
+        returns (bytes32[] memory classIds, uint256[] memory amounts)
+    {
+        // There are at most as many distinct classes as breakpoints of the step function, plus 1 (the default
+        // class).
+        uint256 cap = points.length + 1;
+        classIds = new bytes32[](cap);
+        amounts = new uint256[](cap);
+        uint256 k;
+        for (uint256 i; i < starts.length; ++i) {
+            uint256 x = starts[i];
+            uint256 e = x + lens[i];
+            while (x < e) {
+                (uint256 segEnd, bytes32 c) = _classSegEnd(points, x);
+                uint256 hi = segEnd < e ? segEnd : e;
+                uint256 j;
+                while (j < k && classIds[j] != c) {
+                    ++j;
+                }
+                if (j == k) {
+                    classIds[k] = c;
+                    ++k;
+                }
+                amounts[j] += hi - x;
+                x = hi;
+            }
+        }
+        // Shrinks the array lengths in place (k is not greater than the original length); this writes only memory
+        // that the arrays have already allocated, so it is marked memory-safe.
+        // via-IR can move variables that do not fit on the stack into memory only if all inline assembly in the
+        // contract is memory-safe.
+        assembly ("memory-safe") {
+            mstore(classIds, k)
+            mstore(amounts, k)
+        }
+    }
+
+    /// @dev The end and the class of the slice that contains x; the same as ERCXXXXClassified._classSeg (that copy is
+    ///      on the transfer path and stays in the token).
+    function _classSegEnd(ERCXXXXClassified.ClassPoint[] storage points, uint256 x)
+        private
+        view
+        returns (uint256 segEnd, bytes32 classId)
+    {
+        uint256 n = points.length;
+        uint256 lo;
+        uint256 hi = n;
+        while (lo < hi) {
+            uint256 mid = (lo + hi) >> 1;
+            if (points[mid].pos <= x) lo = mid + 1;
+            else hi = mid;
+        }
+        if (lo == 0) return (n == 0 ? type(uint256).max : points[0].pos, bytes32(0));
+        return (lo < n ? points[lo].pos : type(uint256).max, points[lo - 1].classId);
     }
 }

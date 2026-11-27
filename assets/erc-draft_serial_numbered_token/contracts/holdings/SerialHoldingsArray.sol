@@ -47,4 +47,15 @@ abstract contract SerialHoldingsArray is SerialHoldings {
     function _clearRange(address account, bytes32 pile, uint256 i) internal {
         delete _slots[account][pile][i];
     }
+
+    /// @dev The "index -> slice" mapping of pile `pile` of account. The backend passes it as a storage reference to a
+    ///      linked library (see SerialStackBatch at the end of SerialHoldingsStack), which through DELEGATECALL reads
+    ///      and writes the token's own storage.
+    function _pileSlots(address account, bytes32 pile)
+        internal
+        view
+        returns (mapping(uint256 index => uint256 packed) storage)
+    {
+        return _slots[account][pile];
+    }
 }
